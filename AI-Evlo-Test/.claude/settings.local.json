@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where sqlcmd:*)",
+      "Bash(sqlcmd -S 192.168.1.2 -U claude -P \"Violet-Tibia9-Crabmeat\" -d claude_db -Q \"SELECT TOP 1 * FROM [ListingWebsites];\")",
+      "Bash(sqlcmd -S 192.168.1.2 -U claude -P \"Violet-Tibia9-Crabmeat\" -d claude_db -Q \"SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ''ListingWebsites'' ORDER BY ORDINAL_POSITION;\")",
+      "Bash(sqlcmd -S 192.168.1.2 -U claude -P \"Violet-Tibia9-Crabmeat\" -d claude_db -Q \"SELECT c.name, t.name AS type, c.max_length FROM sys.columns c JOIN sys.types t ON c.user_type_id = t.user_type_id JOIN sys.tables tb ON c.object_id = tb.object_id WHERE tb.name = ''ListingWebsites'' ORDER BY c.column_id;\")",
+      "Bash(sqlcmd -S 192.168.1.2 -U claude -P \"Violet-Tibia9-Crabmeat\" -d claude_db -Q \"SELECT name FROM sys.tables;\")",
+      "Bash(sqlcmd -S 192.168.1.2 -U claude -P \"Violet-Tibia9-Crabmeat\" -d claude_db -Q \"SELECT * FROM fn_my_permissions\\(NULL, ''DATABASE''\\);\")"
+    ]
+  }
+}

@@ -1,0 +1,140 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11605.240
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AI-Evlo-WPF", "AI-Evlo-Test\AI-Evlo-WPF.csproj", "{A9D5D193-9FF2-45AC-B780-8E02B2E0FE22}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5450AF66-5439-489C-8130-E57FCA0CA682} = {5450AF66-5439-489C-8130-E57FCA0CA682}
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Accord.Core (NETStandard)", "Accord.NET-3.8.0\Accord.Core\Accord.Core (NETStandard).csproj", "{0D19B8D2-6763-4F06-B5E4-197C8D7977D3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Accord.Neuro (NETStandard)", "Accord.NET-3.8.0\Accord.Neuro\Accord.Neuro (NETStandard).csproj", "{5450AF66-5439-489C-8130-E57FCA0CA682}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Accord.Math.Core (NETStandard)", "Accord.NET-3.8.0\Accord.Math.Core\Accord.Math.Core (NETStandard).csproj", "{4B693724-9D98-4BB6-BAEA-80CEDEA8154A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Accord.Math (NETStandard)", "Accord.NET-3.8.0\Accord.Math\Accord.Math (NETStandard).csproj", "{356DD44C-0820-4C06-80E7-5FC32FE913BA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Accord.Genetic (NETStandard)", "Accord.NET-3.8.0\Accord.Genetic\Accord.Genetic (NETStandard).csproj", "{8C5C59B8-547D-4EE0-A629-2E3A03B16169}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Accord.Statistics (NETStandard)", "Accord.NET-3.8.0\Accord.Statistics\Accord.Statistics (NETStandard).csproj", "{0F0E20D3-F171-4DA6-9221-04F7FAC4D398}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Accord", "Accord", "{328A5B33-A760-4A75-B218-845806163AE6}"
+	ProjectSection(SolutionItems) = preProject
+		Accord.NET (NETStandard).targets = Accord.NET (NETStandard).targets
+		Accord.NET.ruleset = Accord.NET.ruleset
+		Accord.NET.targets = Accord.NET.targets
+		Accord.NET.testrunconfig = Accord.NET.testrunconfig
+		Version.targets = Version.targets
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AI-Evlo-WPF.UnitTests", "AI-Evlo-WPF.UnitTests\AI-Evlo-WPF.UnitTests.csproj", "{CCDBC054-9770-44FD-BD36-01B8BC70A2F5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Mono|Any CPU = Mono|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A9D5D193-9FF2-45AC-B780-8E02B2E0FE22}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9D5D193-9FF2-45AC-B780-8E02B2E0FE22}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9D5D193-9FF2-45AC-B780-8E02B2E0FE22}.Mono|Any CPU.ActiveCfg = Release|Any CPU
+		{A9D5D193-9FF2-45AC-B780-8E02B2E0FE22}.Mono|Any CPU.Build.0 = Release|Any CPU
+		{A9D5D193-9FF2-45AC-B780-8E02B2E0FE22}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9D5D193-9FF2-45AC-B780-8E02B2E0FE22}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D19B8D2-6763-4F06-B5E4-197C8D7977D3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D19B8D2-6763-4F06-B5E4-197C8D7977D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D19B8D2-6763-4F06-B5E4-197C8D7977D3}.Mono|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D19B8D2-6763-4F06-B5E4-197C8D7977D3}.Mono|Any CPU.Build.0 = Debug|Any CPU
+		{0D19B8D2-6763-4F06-B5E4-197C8D7977D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D19B8D2-6763-4F06-B5E4-197C8D7977D3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5450AF66-5439-489C-8130-E57FCA0CA682}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5450AF66-5439-489C-8130-E57FCA0CA682}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5450AF66-5439-489C-8130-E57FCA0CA682}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{5450AF66-5439-489C-8130-E57FCA0CA682}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{5450AF66-5439-489C-8130-E57FCA0CA682}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5450AF66-5439-489C-8130-E57FCA0CA682}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B693724-9D98-4BB6-BAEA-80CEDEA8154A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B693724-9D98-4BB6-BAEA-80CEDEA8154A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B693724-9D98-4BB6-BAEA-80CEDEA8154A}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{4B693724-9D98-4BB6-BAEA-80CEDEA8154A}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{4B693724-9D98-4BB6-BAEA-80CEDEA8154A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B693724-9D98-4BB6-BAEA-80CEDEA8154A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{356DD44C-0820-4C06-80E7-5FC32FE913BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{356DD44C-0820-4C06-80E7-5FC32FE913BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{356DD44C-0820-4C06-80E7-5FC32FE913BA}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{356DD44C-0820-4C06-80E7-5FC32FE913BA}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{356DD44C-0820-4C06-80E7-5FC32FE913BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{356DD44C-0820-4C06-80E7-5FC32FE913BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C5C59B8-547D-4EE0-A629-2E3A03B16169}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C5C59B8-547D-4EE0-A629-2E3A03B16169}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C5C59B8-547D-4EE0-A629-2E3A03B16169}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{8C5C59B8-547D-4EE0-A629-2E3A03B16169}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{8C5C59B8-547D-4EE0-A629-2E3A03B16169}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C5C59B8-547D-4EE0-A629-2E3A03B16169}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F0E20D3-F171-4DA6-9221-04F7FAC4D398}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F0E20D3-F171-4DA6-9221-04F7FAC4D398}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F0E20D3-F171-4DA6-9221-04F7FAC4D398}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{0F0E20D3-F171-4DA6-9221-04F7FAC4D398}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{0F0E20D3-F171-4DA6-9221-04F7FAC4D398}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F0E20D3-F171-4DA6-9221-04F7FAC4D398}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CCDBC054-9770-44FD-BD36-01B8BC70A2F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CCDBC054-9770-44FD-BD36-01B8BC70A2F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CCDBC054-9770-44FD-BD36-01B8BC70A2F5}.Mono|Any CPU.ActiveCfg = Debug|Any CPU
+		{CCDBC054-9770-44FD-BD36-01B8BC70A2F5}.Mono|Any CPU.Build.0 = Debug|Any CPU
+		{CCDBC054-9770-44FD-BD36-01B8BC70A2F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CCDBC054-9770-44FD-BD36-01B8BC70A2F5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0D19B8D2-6763-4F06-B5E4-197C8D7977D3} = {328A5B33-A760-4A75-B218-845806163AE6}
+		{5450AF66-5439-489C-8130-E57FCA0CA682} = {328A5B33-A760-4A75-B218-845806163AE6}
+		{4B693724-9D98-4BB6-BAEA-80CEDEA8154A} = {328A5B33-A760-4A75-B218-845806163AE6}
+		{356DD44C-0820-4C06-80E7-5FC32FE913BA} = {328A5B33-A760-4A75-B218-845806163AE6}
+		{8C5C59B8-547D-4EE0-A629-2E3A03B16169} = {328A5B33-A760-4A75-B218-845806163AE6}
+		{0F0E20D3-F171-4DA6-9221-04F7FAC4D398} = {328A5B33-A760-4A75-B218-845806163AE6}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {74E0F357-9D96-4009-B124-B335C162A623}
+	EndGlobalSection
+	GlobalSection(TeamFoundationVersionControl) = preSolution
+		SccNumberOfProjects = 9
+		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
+		SccTeamFoundationServer = https://feora.visualstudio.com/
+		SccLocalPath0 = .
+		SccProjectUniqueName1 = AI-Evlo-Test\\AI-Evlo-WPF.csproj
+		SccProjectName1 = AI-Evlo-Test
+		SccLocalPath1 = AI-Evlo-Test
+		SccProjectUniqueName2 = Accord.NET-3.8.0\\Accord.Core\\Accord.Core\u0020(NETStandard).csproj
+		SccProjectTopLevelParentUniqueName2 = AI-Evlo-WPF.sln
+		SccProjectName2 = Accord.NET-3.8.0/Accord.Core
+		SccLocalPath2 = Accord.NET-3.8.0\\Accord.Core
+		SccProjectUniqueName3 = Accord.NET-3.8.0\\Accord.Neuro\\Accord.Neuro\u0020(NETStandard).csproj
+		SccProjectTopLevelParentUniqueName3 = AI-Evlo-WPF.sln
+		SccProjectName3 = Accord.NET-3.8.0/Accord.Neuro
+		SccLocalPath3 = Accord.NET-3.8.0\\Accord.Neuro
+		SccProjectUniqueName4 = Accord.NET-3.8.0\\Accord.Math.Core\\Accord.Math.Core\u0020(NETStandard).csproj
+		SccProjectTopLevelParentUniqueName4 = AI-Evlo-WPF.sln
+		SccProjectName4 = Accord.NET-3.8.0/Accord.Math.Core
+		SccLocalPath4 = Accord.NET-3.8.0\\Accord.Math.Core
+		SccProjectUniqueName5 = Accord.NET-3.8.0\\Accord.Math\\Accord.Math\u0020(NETStandard).csproj
+		SccProjectTopLevelParentUniqueName5 = AI-Evlo-WPF.sln
+		SccProjectName5 = Accord.NET-3.8.0/Accord.Math
+		SccLocalPath5 = Accord.NET-3.8.0\\Accord.Math
+		SccProjectUniqueName6 = Accord.NET-3.8.0\\Accord.Genetic\\Accord.Genetic\u0020(NETStandard).csproj
+		SccProjectTopLevelParentUniqueName6 = AI-Evlo-WPF.sln
+		SccProjectName6 = Accord.NET-3.8.0/Accord.Genetic
+		SccLocalPath6 = Accord.NET-3.8.0\\Accord.Genetic
+		SccProjectUniqueName7 = Accord.NET-3.8.0\\Accord.Statistics\\Accord.Statistics\u0020(NETStandard).csproj
+		SccProjectTopLevelParentUniqueName7 = AI-Evlo-WPF.sln
+		SccProjectName7 = Accord.NET-3.8.0/Accord.Statistics
+		SccLocalPath7 = Accord.NET-3.8.0\\Accord.Statistics
+		SccProjectUniqueName8 = AI-Evlo-WPF.UnitTests\\AI-Evlo-WPF.UnitTests.csproj
+		SccProjectName8 = AI-Evlo-WPF.UnitTests
+		SccLocalPath8 = AI-Evlo-WPF.UnitTests
+	EndGlobalSection
+EndGlobal
