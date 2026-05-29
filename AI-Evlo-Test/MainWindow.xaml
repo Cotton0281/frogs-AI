@@ -75,9 +75,8 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" SizeToContent="Widt
                     <ComboBoxItem Content="Birds"/>
                     <ComboBoxItem Content="Sharks"/>
                 </ComboBox>
-                <Button x:Name="btnDeletePopulation" Content="Delete" HorizontalAlignment="Left" Height="22" Margin="6.8,85,0,0" VerticalAlignment="Top" Width="76" Click="BtnNewObject_Copy_Click" IsEnabled="False" ToolTip="Delete selected population" Grid.Column="1"/>
-                <Button x:Name="btnPopulationUpdate" Content="Update" HorizontalAlignment="Left" Height="22" Margin="97.8,85,0,0" VerticalAlignment="Top" Width="74" Click="BtnPopulationUpdate_Click" IsEnabled="False" ToolTip="Update selected population" Grid.Column="1"/>
-                <Button x:Name="btnNewObject" Content="Create New" HorizontalAlignment="Left" Height="22" Margin="181.8,85,0,0" VerticalAlignment="Top" Width="81" Click="BtnNewPopulation_Click" ToolTip="Create new population of agents" Grid.Column="1"/>
+                <Button x:Name="btnPopulationUpdate" Content="Update" HorizontalAlignment="Left" Height="22" Margin="6.8,85,0,0" VerticalAlignment="Top" Width="74" Click="BtnPopulationUpdate_Click" IsEnabled="False" ToolTip="Update selected population" Grid.Column="1"/>
+                <Button x:Name="btnNewObject" Content="Create New" HorizontalAlignment="Left" Height="22" Margin="90.8,85,0,0" VerticalAlignment="Top" Width="81" Click="BtnNewPopulation_Click" ToolTip="Create new population of agents" Grid.Column="1"/>
                 <Label x:Name="lblPopulationInfo" Content="Population:" Margin="0,110,-8,0" VerticalAlignment="Top" RenderTransformOrigin="-1.24,-0.227" Height="48" Width="280" Padding="2,2,3,2" Grid.ColumnSpan="2"/>
             </Grid>
         </GroupBox>

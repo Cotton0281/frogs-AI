@@ -64,7 +64,6 @@ namespace AI_Evlo_Test
             set
             {
                 _selectedPopulation = value;
-                btnDeletePopulation.IsEnabled = _selectedPopulation != null;
                 btnPopulationUpdate.IsEnabled = _selectedPopulation != null;
                 if (_selectedPopulation == null)
                     return;
@@ -91,6 +90,9 @@ namespace AI_Evlo_Test
         bool boolTickCompleted = true;
         bool isHeadlessMode = false;
         int headlessBatchSize = 50;
+
+        // Single reusable instance of the population list window — never open two.
+        private PopulationList _populationListForm;
         public MainWindow()
         {
 
@@ -275,6 +277,7 @@ namespace AI_Evlo_Test
             newLabel.BorderBrush = Brushes.Gray;
 
             newLabel.MouseLeftButtonDown += NewLabel_MouseLeftButtonDown;
+            newLabel.MouseRightButtonDown += NewLabel_MouseRightButtonDown;
             newLabel.MouseEnter += PopulationLabel_mouseOver;
             newLabel.MouseLeave += PopulaionLabel_mouseLeaave;
         }
@@ -294,16 +297,61 @@ namespace AI_Evlo_Test
         private void NewLabel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             Label clickedLabel = (Label)sender;
-
             Population selPopul = lsPopulations.FirstOrDefault(p => "L" + p.ID.Replace("-", "") == clickedLabel.Name);
             if (selPopul != null)
             {
                 SelectedPopulation = selPopul;
                 ddlPopulationName.SelectedValue = selPopul.ID;
-                PopulationList formPopulationList = new PopulationList();
-                formPopulationList.Show();
-                formPopulationList.SetDataSource(SelectedPopulation);
             }
+        }
+
+        private void NewLabel_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            Label clickedLabel = (Label)sender;
+            Population selPopul = lsPopulations.FirstOrDefault(p => "L" + p.ID.Replace("-", "") == clickedLabel.Name);
+            if (selPopul == null)
+                return;
+
+            SelectedPopulation = selPopul;
+            ddlPopulationName.SelectedValue = selPopul.ID;
+
+            var menu = new System.Windows.Controls.ContextMenu();
+
+            var itemInfo = new System.Windows.Controls.MenuItem { Header = "Population Info" };
+            itemInfo.Click += (s, args) => ShowPopulationListForm(selPopul);
+            menu.Items.Add(itemInfo);
+
+            menu.Items.Add(new System.Windows.Controls.Separator());
+
+            var itemDelete = new System.Windows.Controls.MenuItem { Header = "Delete" };
+            itemDelete.Click += (s, args) => DeletePopulation(selPopul);
+            menu.Items.Add(itemDelete);
+
+            menu.PlacementTarget = clickedLabel;
+            menu.IsOpen = true;
+            e.Handled = true;
+        }
+
+        private void ShowPopulationListForm(Population population)
+        {
+            if (_populationListForm == null || !_populationListForm.Visible)
+            {
+                _populationListForm = new PopulationList();
+                _populationListForm.FormClosed += (s, args) => _populationListForm = null;
+            }
+            _populationListForm.SetDataSource(population);
+            _populationListForm.Show();
+            _populationListForm.BringToFront();
+        }
+
+        private void DeletePopulation(Population population)
+        {
+            if (population == null)
+                return;
+
+            // Select this population so BtnNewObject_Copy_Click operates on it
+            SelectedPopulation = population;
+            BtnNewObject_Copy_Click(null, null);
         }
 
         private void UpdatePopulationsDDL(Population newPopulation)
