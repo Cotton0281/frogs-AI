@@ -6,6 +6,7 @@ using ArtificialNeuralNetwork.WeightInitializer;
 using System;
 using System.Text;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace AI_Evlo_Test.Objects
@@ -121,6 +122,9 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Actual movement magnitude from the last tick.</summary>
         public double LastSpeed { get; set; } = 0;
 
+        /// <summary>Actual rotation (degrees) applied last tick. Negative = left, positive = right.</summary>
+        public double LastRotation { get; protected set; } = 0;
+
         /// <summary>Stamina regenerated per tick.</summary>
         private const double StaminaRegenRate = 0.3;
 
@@ -155,7 +159,7 @@ namespace AI_Evlo_Test.Objects
         /// Returns the sprite frame to display this tick, or null for shape-based agents.
         /// Overridden by species that animate (Frog, Bird, Shark).
         /// </summary>
-        public virtual BitmapImage GetSpriteFrame() => null;
+        public virtual ImageSource GetSpriteFrame() => null;
 
         public double HP
         {
@@ -206,9 +210,11 @@ namespace AI_Evlo_Test.Objects
             // Scale movement by remaining stamina — exhausted agents move less
             double staminaFraction = MaxStamina > 0 ? Stamina / MaxStamina : 0;
             double actualThrust = thrustRequest * staminaFraction;
-            this.Rotate(rotationRequest * staminaFraction);
+            double actualRotation = rotationRequest * staminaFraction;
+            this.Rotate(actualRotation);
             this.PushForward(actualThrust);
             LastSpeed = Math.Abs(actualThrust);
+            LastRotation = actualRotation;
 
             // Regenerate stamina slowly each tick
             Stamina = Math.Min(MaxStamina, Stamina + StaminaRegenRate);

@@ -210,14 +210,6 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="img\104744351.jpg" />
-    <Resource Include="img\cv5ze3jsale.jpg" />
-    <Resource Include="img\dashikka150600025.jpg" />
-    <Resource Include="img\k2304gyqos3.jpg" />
-    <Resource Include="img\sharks.jpg" />
-    <Resource Include="img\th.jpg" />
-  </ItemGroup>
-  <ItemGroup>
     <Resource Include="img\Help-icon.png" />
   </ItemGroup>
   <ItemGroup>
@@ -274,6 +266,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="img\raft.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="img\Shark.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

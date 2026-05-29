@@ -3,6 +3,7 @@ using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.WeightInitializer;
 using System;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace AI_Evlo_Test.Objects
@@ -42,7 +43,7 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Birds see everything — they hunt by sight.</summary>
         public override ObjectCategory[] IgnoredCategories => null;
 
-        public override BitmapImage GetSpriteFrame() => GetCurrentSpriteFrame();
+        public override ImageSource GetSpriteFrame() => GetCurrentSpriteFrame();
 
         /// <summary>
         /// Birds fly over the water and land on rafts. They ignore raft HP charge, drain HP

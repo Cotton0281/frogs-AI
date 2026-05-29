@@ -1,52 +1,79 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace AI_Evlo_Test.Objects
 {
     /// <summary>
-    /// Preloads shark swim frames once, frozen for cross-thread use.
-    /// Prefers dedicated shark{1..5}.png frames if present; otherwise falls back to
-    /// sharks.jpg, and finally to a frog frame so the cache always yields an image.
+    /// Loads the shark sprite sheet (img/Shark.png) once and slices it into 16 frozen frames
+    /// laid out as a 4×4 grid. Frames are grouped into named animations.
+    ///
+    /// Layout (column-major within each row, frame index = row*4 + col):
+    ///   Row 0 (0-3):   swim forward   — 0 neutral, 1 tail-left, 2 tail-right, 3 glide
+    ///   Row 1 (4-7):   turn left      — 4 start, 5 stronger, 6 mid, 7 finish
+    ///   Row 2 (8-11):  turn right     — 8 start, 9 stronger, 10 mid, 11 finish
+    ///   Row 3 (12-15): bite/attack    — 12 closed, 13 opening, 14 full bite, 15 recover
+    ///
+    /// If the sheet is missing it falls back to a single frog frame so the cache always
+    /// yields a usable image. See data/Shark.md for the full sprite-sheet specification.
     /// </summary>
     internal static class SharkSpriteCache
     {
-        private static readonly string ImgDir = Directory.GetCurrentDirectory() + "\\img\\";
+        private const int Columns = 4;
+        private const int Rows = 4;
 
-        public static readonly BitmapImage[] SwimFrames;
+        private static readonly string SheetPath = Directory.GetCurrentDirectory() + "\\img\\Shark.png";
+
+        /// <summary>All 16 frames, indexed by frame number (row*4 + col).</summary>
+        public static readonly ImageSource[] Frames;
+
+        public static readonly int[] SwimForward = { 0, 1, 2, 3 };
+        public static readonly int[] TurnLeft = { 4, 5, 6, 7 };
+        public static readonly int[] TurnRight = { 8, 9, 10, 11 };
+        public static readonly int[] Bite = { 12, 13, 14, 15 };
 
         static SharkSpriteCache()
         {
-            BitmapImage baseFrame = LoadFrozenOrFallback("sharks.jpg", FrogSpriteCache.FastFrame);
-
-            var frames = new List<BitmapImage>();
-            for (int i = 1; i <= 5; i++)
-            {
-                string file = "shark" + i + ".png";
-                if (File.Exists(Path.Combine(ImgDir, file)))
-                    frames.Add(LoadFrozenOrFallback(file, baseFrame));
-            }
-
-            if (frames.Count == 0)
-                frames.Add(baseFrame);
-
-            SwimFrames = frames.ToArray();
+            Frames = SliceSheet(SheetPath, Columns, Rows);
         }
 
-        private static BitmapImage LoadFrozenOrFallback(string fileName, BitmapImage fallback)
+        /// <summary>Returns the frame for the given index, guarding against the fallback case.</summary>
+        public static ImageSource Frame(int index)
         {
-            string imagePath = Path.Combine(ImgDir, fileName);
-            if (!File.Exists(imagePath))
-                return fallback;
+            if (index < 0 || index >= Frames.Length)
+                return Frames[0];
+            return Frames[index];
+        }
 
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.UriSource = new Uri(imagePath);
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
+        private static ImageSource[] SliceSheet(string path, int cols, int rows)
+        {
+            if (!File.Exists(path))
+                return new ImageSource[] { FrogSpriteCache.FastFrame };
+
+            BitmapImage sheet = new BitmapImage();
+            sheet.BeginInit();
+            sheet.UriSource = new Uri(path);
+            sheet.CacheOption = BitmapCacheOption.OnLoad;
+            sheet.EndInit();
+            sheet.Freeze();
+
+            int frameW = sheet.PixelWidth / cols;
+            int frameH = sheet.PixelHeight / rows;
+
+            var frames = new ImageSource[cols * rows];
+            for (int r = 0; r < rows; r++)
+            {
+                for (int c = 0; c < cols; c++)
+                {
+                    var rect = new Int32Rect(c * frameW, r * frameH, frameW, frameH);
+                    var cropped = new CroppedBitmap(sheet, rect);
+                    cropped.Freeze();
+                    frames[r * cols + c] = cropped;
+                }
+            }
+            return frames;
         }
     }
 }

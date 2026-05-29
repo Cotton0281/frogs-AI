@@ -3,6 +3,7 @@ using ArtificialNeuralNetwork.Factories;
 using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.WeightInitializer;
 using System;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace AI_Evlo_Test.Objects
@@ -41,7 +42,7 @@ namespace AI_Evlo_Test.Objects
             InitializeSpriteRhythm();
         }
 
-        public override BitmapImage GetSpriteFrame() => GetNextSpriteFrame();
+        public override ImageSource GetSpriteFrame() => GetNextSpriteFrame();
 
         public BitmapImage GetNextSpriteFrame()
         {

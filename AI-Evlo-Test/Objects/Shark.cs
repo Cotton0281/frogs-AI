@@ -2,7 +2,7 @@ using AI_Evlo_Test.ConfigLib;
 using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.WeightInitializer;
 using System;
-using System.Windows.Media.Imaging;
+using System.Windows.Media;
 
 namespace AI_Evlo_Test.Objects
 {
@@ -21,6 +21,14 @@ namespace AI_Evlo_Test.Objects
         private int _frameCounter;
         private int _nextFrameAt;
         private int _swimFrameIndex;
+
+        /// <summary>Ticks the bite animation plays after a kill (one frame per ~quarter).</summary>
+        private const int BiteAnimationTicks = 8;
+        private int _biteTicksLeft;
+
+        /// <summary>Rotation magnitude (degrees) above which the turn animation is shown.</summary>
+        private const double TurnAnimationThreshold = 0.6;
+        private const int FramesPerAnimation = 4;
 
         /// <summary>HP lost each tick — sharks must eat to survive.</summary>
         public const double SwimHpDrain = 0.4;
@@ -77,17 +85,42 @@ namespace AI_Evlo_Test.Objects
             InitializeSpriteRhythm();
         }
 
-        public override BitmapImage GetSpriteFrame()
+        /// <summary>Plays the bite animation for the next few ticks (called when the shark eats).</summary>
+        public void TriggerBite()
         {
+            _biteTicksLeft = BiteAnimationTicks;
+        }
+
+        public override ImageSource GetSpriteFrame()
+        {
+            // Bite animation takes priority and plays through its 4 frames once
+            if (_biteTicksLeft > 0)
+            {
+                int elapsed = BiteAnimationTicks - _biteTicksLeft;
+                int biteFrame = elapsed * FramesPerAnimation / BiteAnimationTicks; // 0..3
+                if (biteFrame >= FramesPerAnimation) biteFrame = FramesPerAnimation - 1;
+                _biteTicksLeft--;
+                return SharkSpriteCache.Frame(SharkSpriteCache.Bite[biteFrame]);
+            }
+
+            // Otherwise pick swim / turn-left / turn-right based on the last rotation
+            int[] animation;
+            if (LastRotation < -TurnAnimationThreshold)
+                animation = SharkSpriteCache.TurnLeft;
+            else if (LastRotation > TurnAnimationThreshold)
+                animation = SharkSpriteCache.TurnRight;
+            else
+                animation = SharkSpriteCache.SwimForward;
+
             _frameCounter++;
             if (_frameCounter >= _nextFrameAt)
             {
                 _frameCounter = 0;
-                _swimFrameIndex = (_swimFrameIndex + 1) % SharkSpriteCache.SwimFrames.Length;
+                _swimFrameIndex = (_swimFrameIndex + 1) % FramesPerAnimation;
                 _nextFrameAt = NextRandom(MinTicksToNextFrame, MaxTicksToNextFrame + 1);
             }
 
-            return SharkSpriteCache.SwimFrames[_swimFrameIndex];
+            return SharkSpriteCache.Frame(animation[_swimFrameIndex % FramesPerAnimation]);
         }
 
         /// <summary>
@@ -120,7 +153,7 @@ namespace AI_Evlo_Test.Objects
 
         private void InitializeSpriteRhythm()
         {
-            _swimFrameIndex = NextRandom(0, SharkSpriteCache.SwimFrames.Length);
+            _swimFrameIndex = NextRandom(0, FramesPerAnimation);
             _nextFrameAt = NextRandom(MinTicksToNextFrame, MaxTicksToNextFrame + 1);
             _frameCounter = NextRandom(0, _nextFrameAt);
         }

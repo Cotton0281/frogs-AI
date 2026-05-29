@@ -369,7 +369,7 @@ namespace AI_Evlo_Test
         private FrameworkElement CreateNewSharkImage()
         {
             Image dynamicImage = new Image();
-            dynamicImage.Source = SharkSpriteCache.SwimFrames[0];
+            dynamicImage.Source = SharkSpriteCache.Frame(0);
             dynamicImage.Width = 50;
             dynamicImage.Height = 50;
             dynamicImage.Opacity = 0.85;

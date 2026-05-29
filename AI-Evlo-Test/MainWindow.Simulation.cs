@@ -166,7 +166,7 @@ namespace AI_Evlo_Test
                     // Animate species sprite
                     if (smartObject.VisibleShape is Image img)
                     {
-                        BitmapImage frame = smart.GetSpriteFrame();
+                        ImageSource frame = smart.GetSpriteFrame();
                         if (frame != null)
                             img.Source = frame;
                     }
@@ -220,7 +220,7 @@ namespace AI_Evlo_Test
                     // Animate species sprite
                     if (smartObject.VisibleShape is Image img)
                     {
-                        BitmapImage frame = smart.GetSpriteFrame();
+                        ImageSource frame = smart.GetSpriteFrame();
                         if (frame != null)
                             img.Source = frame;
                     }
@@ -527,6 +527,7 @@ namespace AI_Evlo_Test
 
                 shark.HP += Shark.HuntHpGain;
                 shark.FrogsEaten++;
+                shark.TriggerBite();
                 frogsToDispose.Add(nearestFrog);
             }
 
