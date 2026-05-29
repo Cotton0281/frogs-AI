@@ -133,6 +133,7 @@
     <Compile Include="Objects\RaftTickContext.cs" />
     <Compile Include="Objects\Shark.cs" />
     <Compile Include="Objects\SharkSpriteCache.cs" />
+    <Compile Include="Objects\BirdSheetCache.cs" />
     <Compile Include="Objects\FrogSheetCache.cs" />
     <Compile Include="Objects\SpriteSheet.cs" />
     <Compile Include="Objects\RayPerception.cs" />
@@ -194,6 +195,7 @@
     <None Include="AI-Evlo-WPF_TemporaryKey.pfx" />
     <None Include="data\Bird.md" />
     <None Include="data\Frog.md" />
+    <None Include="img\bird_sprite_sheet_1024_256px_frames.json" />
     <None Include="packages.config" />
     <None Include="Properties\app.manifest" />
     <None Include="Properties\DataSources\AI_Evlo_Test.Objects.BasicObject.datasource" />
@@ -215,19 +217,9 @@
     <Content Include="img\bird1.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Resource Include="img\bird_sprite_sheet_1024_256px_frames.png" />
     <Resource Include="img\shark_sprite_sheet_1024_256px_frames.png" />
     <Resource Include="img\frog_sprite_sheet.png" />
-    <Resource Include="img\bird2.jpg" />
-    <Resource Include="img\bird3.jpg" />
-    <Resource Include="img\bird4.jpg" />
-    <Resource Include="img\bird5.jpg" />
-    <Resource Include="img\bird6.jpg" />
-    <Resource Include="img\bird7.jpg" />
-    <Resource Include="img\frog1.png" />
-    <Resource Include="img\frog2.png" />
-    <Resource Include="img\frog3.jpg" />
-    <Resource Include="img\frog4.png" />
-    <Resource Include="img\frog5.png" />
     <Content Include="img\bird2.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
@@ -258,11 +250,9 @@
     <Content Include="img\frog5_64.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <None Include="img\frog8.jpeg" />
     <Content Include="img\frog8_64.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Resource Include="img\frog9.jpg" />
     <Content Include="img\frog9_64.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

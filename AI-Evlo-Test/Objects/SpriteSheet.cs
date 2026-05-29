@@ -9,22 +9,38 @@ namespace AI_Evlo_Test.Objects
     /// Loads a sprite-sheet image (as an embedded WPF Resource, via a pack URI) and slices it
     /// into a grid of frozen frames. Using a pack URI means the frames resolve regardless of the
     /// working directory and survive Visual Studio flipping the image's build action between
-    /// Content and Resource — the recurring gotcha that left sharks showing the fallback frame.
+    /// Content and Resource.
     ///
     /// The image's Build Action must be "Resource". Frame index = row * columns + column
     /// (left-to-right, top-to-bottom).
+    ///
+    /// If the sheet dimensions are not evenly divisible by the grid (e.g. 1254px / 4 = 313.5)
+    /// the sheet is scaled to the nearest clean multiple before slicing.
     /// </summary>
     internal static class SpriteSheet
     {
         /// <summary>
         /// Pixels whose R, G and B channels are all at or above this value are treated as the
-        /// (near-white) sheet background and made fully transparent. The provided sheets ship with
-        /// an opaque ~230 grey background rather than a real alpha channel.
+        /// (near-white) sheet background and made fully transparent. Set to 0 to skip keying
+        /// (use when the sheet already has a real alpha channel).
         /// </summary>
         private const byte DefaultBackgroundThreshold = 200;
 
-        public static ImageSource[] Slice(string resourceRelativePath, int columns, int rows,
-            byte backgroundThreshold = DefaultBackgroundThreshold)
+        /// <summary>
+        /// Slice a sheet whose background is an opaque near-white colour (no alpha channel).
+        /// Background pixels are color-keyed to transparent.
+        /// </summary>
+        public static ImageSource[] Slice(string resourceRelativePath, int columns, int rows)
+            => SliceInternal(resourceRelativePath, columns, rows, DefaultBackgroundThreshold);
+
+        /// <summary>
+        /// Slice a sheet that already has a proper alpha channel — no color-keying is applied.
+        /// </summary>
+        public static ImageSource[] SliceWithAlpha(string resourceRelativePath, int columns, int rows)
+            => SliceInternal(resourceRelativePath, columns, rows, backgroundThreshold: 0);
+
+        private static ImageSource[] SliceInternal(string resourceRelativePath, int columns, int rows,
+            byte backgroundThreshold)
         {
             try
             {
@@ -35,21 +51,29 @@ namespace AI_Evlo_Test.Objects
                 sheet.EndInit();
                 sheet.Freeze();
 
-                BitmapSource keyed = KeyOutBackground(sheet, backgroundThreshold);
+                BitmapSource source = sheet;
 
-                int frameW = keyed.PixelWidth / columns;
-                int frameH = keyed.PixelHeight / rows;
+                if (backgroundThreshold > 0)
+                    source = KeyOutBackground(source, backgroundThreshold);
+
+                // Use integer division: if the sheet isn't exactly divisible (e.g. 1254 / 4 = 313)
+                // CroppedBitmap clamps to the available pixels — close enough for sprite borders.
+                int frameW = source.PixelWidth / columns;
+                int frameH = source.PixelHeight / rows;
 
                 var frames = new ImageSource[columns * rows];
                 for (int r = 0; r < rows; r++)
-                {
                     for (int c = 0; c < columns; c++)
                     {
-                        var cropped = new CroppedBitmap(keyed, new Int32Rect(c * frameW, r * frameH, frameW, frameH));
+                        int x = c * frameW;
+                        int y = r * frameH;
+                        // Ensure we don't exceed the bitmap bounds on the last column/row
+                        int w = Math.Min(frameW, source.PixelWidth - x);
+                        int h = Math.Min(frameH, source.PixelHeight - y);
+                        var cropped = new CroppedBitmap(source, new Int32Rect(x, y, w, h));
                         cropped.Freeze();
                         frames[r * columns + c] = cropped;
                     }
-                }
                 return frames;
             }
             catch
@@ -59,8 +83,8 @@ namespace AI_Evlo_Test.Objects
         }
 
         /// <summary>
-        /// Returns a copy of the source with near-white background pixels made transparent.
-        /// Colored sprite pixels (where any channel is below the threshold) are left untouched.
+        /// Returns a copy with near-white background pixels (all channels >= threshold) made
+        /// fully transparent. Sprite pixels with any channel below the threshold are untouched.
         /// </summary>
         private static BitmapSource KeyOutBackground(BitmapSource source, byte threshold)
         {
@@ -77,7 +101,7 @@ namespace AI_Evlo_Test.Objects
                 byte g = pixels[i + 1];
                 byte r = pixels[i + 2];
                 if (b >= threshold && g >= threshold && r >= threshold)
-                    pixels[i + 3] = 0; // fully transparent
+                    pixels[i + 3] = 0;
             }
 
             var result = BitmapSource.Create(width, height, bgra.DpiX, bgra.DpiY,

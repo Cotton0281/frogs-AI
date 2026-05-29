@@ -353,7 +353,7 @@ namespace AI_Evlo_Test
         private FrameworkElement CreateNewBirdImage()
         {
             Image dynamicImage = new Image();
-            dynamicImage.Source = BirdSpriteCache.FlightFrames[0];
+            dynamicImage.Source = BirdSheetCache.Frame(0);
             dynamicImage.Width = 40;
             dynamicImage.Height = 40;
             dynamicImage.RenderTransformOrigin = new Point(0.5, 0.5);

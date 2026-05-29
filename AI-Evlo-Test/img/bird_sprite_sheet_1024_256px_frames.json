@@ -1,0 +1,63 @@
+{
+  "image": "bird_sprite_sheet_1024_256px_frames.png",
+  "grid": {
+    "columns": 4,
+    "rows": 4
+  },
+  "frameSize": {
+    "width": 256,
+    "height": 256
+  },
+  "totalFrames": 16,
+  "frameIndexing": "left-to-right, top-to-bottom",
+  "animations": {
+    "flyStraight": {
+      "frames": [0, 1, 2, 3],
+      "loop": true,
+      "description": "Straight flight cycle with wing flapping"
+    },
+    "circleLeft": {
+      "frames": [4, 5, 6, 7],
+      "loop": true,
+      "description": "Banked flight turning left / left circle"
+    },
+    "circleRight": {
+      "frames": [8, 9, 10, 11],
+      "loop": true,
+      "description": "Banked flight turning right / right circle"
+    },
+    "land": {
+      "frames": [12],
+      "loop": false,
+      "description": "Landing frame seen from above"
+    },
+    "walk": {
+      "frames": [13, 14],
+      "loop": true,
+      "description": "Walking on the ground from top-down view"
+    },
+    "idleGround": {
+      "frames": [15],
+      "loop": true,
+      "description": "Standing idle on the ground from top-down view"
+    }
+  },
+  "frameDescriptions": {
+    "0": "fly straight - wings high upstroke",
+    "1": "fly straight - wings extended flat",
+    "2": "fly straight - wings lowered downstroke",
+    "3": "fly straight - wings raised glide / recovery",
+    "4": "circle left - start bank left",
+    "5": "circle left - stronger left bank",
+    "6": "circle left - mid left arc",
+    "7": "circle left - recover while turning left",
+    "8": "circle right - start bank right",
+    "9": "circle right - stronger right bank",
+    "10": "circle right - mid right arc",
+    "11": "circle right - recover while turning right",
+    "12": "landing from above - feet out, wings lifted",
+    "13": "ground walk from above - step 1",
+    "14": "ground walk from above - step 2",
+    "15": "ground idle from above - standing"
+  }
+}

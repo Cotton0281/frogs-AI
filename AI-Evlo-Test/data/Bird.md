@@ -83,7 +83,30 @@ After eating one frog, the bird's HP typically rises above the 90% threshold, pr
 
 ### Sprites
 
-Birds cycle through 5 flight animation frames (`bird1.png` – `bird5.png`) with randomized frame timing (6–18 ticks per frame). Each bird starts at a random phase to avoid synchronised animation across the population. When landed, the bird displays `bird_landed.png`.
+Birds are animated from a **sprite sheet** (`img/bird_sprite_sheet_1024_256px_frames.png`), sliced
+at load time into 16 frozen frames via `BirdSheetCache` → `SpriteSheet.SliceWithAlpha`. The sheet
+already has a real alpha channel so no color-keying is applied.
+
+| Property      | Value                                             |
+|---------------|---------------------------------------------------|
+| File          | `img/bird_sprite_sheet_1024_256px_frames.png`     |
+| Build action  | Resource (embedded, loaded via pack URI)          |
+| Sheet size    | 1024 × 1024 px                                    |
+| Grid          | 4 columns × 4 rows                                |
+| Total frames  | 16                                                |
+| Frame size    | 256 × 256 px                                      |
+| Frame index   | `row * 4 + column` (left-to-right, top-to-bottom) |
+
+| Row | Frames | Animation      | Meaning                                     |
+|-----|--------|----------------|---------------------------------------------|
+| 0   | 0–3    | `flyStraight`  | wing-flap cycle                             |
+| 1   | 4–7    | `circleLeft`   | banked left-turn cycle                      |
+| 2   | 8–11   | `circleRight`  | banked right-turn cycle                     |
+| 3   | 12–15  | landed         | 12 landing, 13–14 walk, 15 idle             |
+
+At runtime the bird picks **circleLeft** / **circleRight** / **flyStraight** based on `LastRotation`.
+When landed it cycles the two walk frames (or shows the idle frame when stationary). Frame timing
+is randomized (6–18 ticks/frame flying, 12–36 ticks/frame walking) with per-bird phase offsets.
 
 ## Evolution
 

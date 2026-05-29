@@ -19,6 +19,10 @@ namespace AI_Evlo_Test.Objects
         private int _nextFrameAt;
         private int _flightFrameIndex;
 
+        /// <summary>Rotation magnitude above which turn animations are shown.</summary>
+        private const double TurnAnimationThreshold = 0.6;
+        private const int FlightFramesPerAnimation = 4;
+
         public const double FlightHpDrain = 0.45;
         public const double LandedHpDrain = 0.08;
         public const double HuntHpGain = 200;
@@ -43,7 +47,7 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Birds see everything — they hunt by sight.</summary>
         public override ObjectCategory[] IgnoredCategories => null;
 
-        public override ImageSource GetSpriteFrame() => GetCurrentSpriteFrame();
+        public override ImageSource GetSpriteFrame() => GetNextSpriteFrame();
 
         /// <summary>
         /// Birds fly over the water and land on rafts. They ignore raft HP charge, drain HP
@@ -100,25 +104,47 @@ namespace AI_Evlo_Test.Objects
             InitializeSpriteRhythm();
         }
 
-        public BitmapImage GetCurrentSpriteFrame()
+        public ImageSource GetNextSpriteFrame()
         {
             if (IsLanded)
-                return BirdSpriteCache.LandedFrame;
+            {
+                // Cycle walk frames while landed; when not moving use idle
+                _frameCounter++;
+                if (_frameCounter >= _nextFrameAt)
+                {
+                    _frameCounter = 0;
+                    _flightFrameIndex = (_flightFrameIndex + 1) % BirdSheetCache.Walk.Length;
+                    _nextFrameAt = NextRandom(MinTicksToNextFrame * 2, MaxTicksToNextFrame * 2 + 1);
+                }
+                int walkIdx = _flightFrameIndex % BirdSheetCache.Walk.Length;
+                return LastSpeed > 0.01
+                    ? BirdSheetCache.Frame(BirdSheetCache.Walk[walkIdx])
+                    : BirdSheetCache.Frame(BirdSheetCache.IdleGround);
+            }
+
+            // In-flight: pick bank direction from last rotation
+            int[] animation;
+            if (LastRotation < -TurnAnimationThreshold)
+                animation = BirdSheetCache.CircleLeft;
+            else if (LastRotation > TurnAnimationThreshold)
+                animation = BirdSheetCache.CircleRight;
+            else
+                animation = BirdSheetCache.FlyStraight;
 
             _frameCounter++;
             if (_frameCounter >= _nextFrameAt)
             {
                 _frameCounter = 0;
-                _flightFrameIndex = (_flightFrameIndex + 1) % BirdSpriteCache.FlightFrames.Length;
+                _flightFrameIndex = (_flightFrameIndex + 1) % FlightFramesPerAnimation;
                 _nextFrameAt = NextRandom(MinTicksToNextFrame, MaxTicksToNextFrame + 1);
             }
 
-            return BirdSpriteCache.FlightFrames[_flightFrameIndex];
+            return BirdSheetCache.Frame(animation[_flightFrameIndex % FlightFramesPerAnimation]);
         }
 
         private void InitializeSpriteRhythm()
         {
-            _flightFrameIndex = NextRandom(0, BirdSpriteCache.FlightFrames.Length);
+            _flightFrameIndex = NextRandom(0, FlightFramesPerAnimation);
             _nextFrameAt = NextRandom(MinTicksToNextFrame, MaxTicksToNextFrame + 1);
             _frameCounter = NextRandom(0, _nextFrameAt);
         }
