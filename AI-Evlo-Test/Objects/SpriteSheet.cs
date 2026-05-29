@@ -16,7 +16,15 @@ namespace AI_Evlo_Test.Objects
     /// </summary>
     internal static class SpriteSheet
     {
-        public static ImageSource[] Slice(string resourceRelativePath, int columns, int rows)
+        /// <summary>
+        /// Pixels whose R, G and B channels are all at or above this value are treated as the
+        /// (near-white) sheet background and made fully transparent. The provided sheets ship with
+        /// an opaque ~230 grey background rather than a real alpha channel.
+        /// </summary>
+        private const byte DefaultBackgroundThreshold = 200;
+
+        public static ImageSource[] Slice(string resourceRelativePath, int columns, int rows,
+            byte backgroundThreshold = DefaultBackgroundThreshold)
         {
             try
             {
@@ -27,15 +35,17 @@ namespace AI_Evlo_Test.Objects
                 sheet.EndInit();
                 sheet.Freeze();
 
-                int frameW = sheet.PixelWidth / columns;
-                int frameH = sheet.PixelHeight / rows;
+                BitmapSource keyed = KeyOutBackground(sheet, backgroundThreshold);
+
+                int frameW = keyed.PixelWidth / columns;
+                int frameH = keyed.PixelHeight / rows;
 
                 var frames = new ImageSource[columns * rows];
                 for (int r = 0; r < rows; r++)
                 {
                     for (int c = 0; c < columns; c++)
                     {
-                        var cropped = new CroppedBitmap(sheet, new Int32Rect(c * frameW, r * frameH, frameW, frameH));
+                        var cropped = new CroppedBitmap(keyed, new Int32Rect(c * frameW, r * frameH, frameW, frameH));
                         cropped.Freeze();
                         frames[r * columns + c] = cropped;
                     }
@@ -46,6 +56,34 @@ namespace AI_Evlo_Test.Objects
             {
                 return new ImageSource[0];
             }
+        }
+
+        /// <summary>
+        /// Returns a copy of the source with near-white background pixels made transparent.
+        /// Colored sprite pixels (where any channel is below the threshold) are left untouched.
+        /// </summary>
+        private static BitmapSource KeyOutBackground(BitmapSource source, byte threshold)
+        {
+            var bgra = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+            int width = bgra.PixelWidth;
+            int height = bgra.PixelHeight;
+            int stride = width * 4;
+            byte[] pixels = new byte[height * stride];
+            bgra.CopyPixels(pixels, stride, 0);
+
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                byte b = pixels[i];
+                byte g = pixels[i + 1];
+                byte r = pixels[i + 2];
+                if (b >= threshold && g >= threshold && r >= threshold)
+                    pixels[i + 3] = 0; // fully transparent
+            }
+
+            var result = BitmapSource.Create(width, height, bgra.DpiX, bgra.DpiY,
+                PixelFormats.Bgra32, null, pixels, stride);
+            result.Freeze();
+            return result;
         }
     }
 }
