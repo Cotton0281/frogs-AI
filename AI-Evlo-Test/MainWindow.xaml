@@ -73,6 +73,7 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" SizeToContent="Widt
                 <ComboBox x:Name="ddlPopulationBeing" HorizontalAlignment="Left" Margin="190.8,50,0,0" VerticalAlignment="Top" Width="72" ToolTip="Type of the evolving being" Grid.Column="1">
                     <ComboBoxItem Content="Frogs" IsSelected="True"/>
                     <ComboBoxItem Content="Birds"/>
+                    <ComboBoxItem Content="Sharks"/>
                 </ComboBox>
                 <Button x:Name="btnDeletePopulation" Content="Delete" HorizontalAlignment="Left" Height="22" Margin="6.8,85,0,0" VerticalAlignment="Top" Width="76" Click="BtnNewObject_Copy_Click" IsEnabled="False" ToolTip="Delete selected population" Grid.Column="1"/>
                 <Button x:Name="btnPopulationUpdate" Content="Update" HorizontalAlignment="Left" Height="22" Margin="97.8,85,0,0" VerticalAlignment="Top" Width="74" Click="BtnPopulationUpdate_Click" IsEnabled="False" ToolTip="Update selected population" Grid.Column="1"/>

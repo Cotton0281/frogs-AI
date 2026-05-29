@@ -33,6 +33,11 @@ namespace AI_Evlo_Test.Objects
         [System.Runtime.Serialization.IgnoreDataMember]
         public override List<ISmartObject> Members { get; set; } = new List<ISmartObject>();
         public PopulationBeing Being { get; set; } = PopulationBeing.Frog;
+
+        // Runtime-only: a System.Type does not round-trip through JSON cleanly.
+        // It is rebuilt from Being after load.
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Runtime.Serialization.IgnoreDataMember]
         public Type ObjectType { get; internal set; }
 
         /// <summary>
@@ -103,6 +108,9 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         public int TotalMembersCount { get; set; }
 
+        // Runtime-only WPF brush; only the Color value (below) is persisted.
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Runtime.Serialization.IgnoreDataMember]
         public SolidColorBrush PopulationColorBrush = new SolidColorBrush() { Color = Colors.Yellow };
         public Color PopulationColor { get { return PopulationColorBrush.Color; } set { PopulationColorBrush.Color = value; } }
         /// <summary>

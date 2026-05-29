@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using AI_Evlo_Test.Objects;
 using AI_Evlo_Test.Enumerators;
@@ -124,13 +125,11 @@ namespace AI_Evlo_Test
             {
                 SmartObject smart = smartObject as SmartObject;
 
-                // Frogs see only birds and rafts; birds see everything
-                ObjectCategory[] ignored = smart is Bird ? null : _frogIgnoredCategories;
-                smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, ignored);
+                // Each species declares what it can and cannot perceive
+                smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
 
                 // Build NN inputs: 2 scalars (HP deficit, stamina deficit) + 24 ray signals = 26
-                int effectiveMaxHp = smart is Bird ? Bird.BirdMaxHp : SmartObject.MaxHp;
-                double hpDeficit = 1.0 - (smartObject.HP / effectiveMaxHp);
+                double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
                 double staminaDeficit = 1.0 - (smartObject.Stamina / SmartObject.MaxStamina);
                 smart.Perception.FillInputs(smart.CachedInputs, hpDeficit, staminaDeficit);
 
@@ -159,16 +158,18 @@ namespace AI_Evlo_Test
                         continue;
 
                     // Update UI
-                    int maxHp1 = smartObject is Bird ? Bird.BirdMaxHp : SmartObject.MaxHp;
-                    smartObject.VisibleShape.Opacity = (2 * smartObject.HP / maxHp1);
-                    double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), (smartObject as SmartObject).FaceDirection);
+                    SmartObject smart = (SmartObject)smartObject;
+                    smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
+                    double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
                     smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
 
-                    // Animate frog sprite
-                    if (smartObject is Frog frog && smartObject.VisibleShape is Image img)
-                        img.Source = frog.GetNextSpriteFrame();
-                    else if (smartObject is Bird bird && smartObject.VisibleShape is Image birdImage)
-                        birdImage.Source = bird.GetCurrentSpriteFrame();
+                    // Animate species sprite
+                    if (smartObject.VisibleShape is Image img)
+                    {
+                        BitmapImage frame = smart.GetSpriteFrame();
+                        if (frame != null)
+                            img.Source = frame;
+                    }
 
                     DrawImage(smartObject.VisibleShape, smartObject.Location);
                 }
@@ -183,13 +184,11 @@ namespace AI_Evlo_Test
             {
                 SmartObject smart = smartObject as SmartObject;
 
-                // Frogs see only birds and rafts; birds see everything
-                ObjectCategory[] ignored = smart is Bird ? null : _frogIgnoredCategories;
-                smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, ignored);
+                // Each species declares what it can and cannot perceive
+                smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
 
                 // Build NN inputs: 2 scalars (HP deficit, stamina deficit) + 24 ray signals = 26
-                int effectiveMaxHp = smart is Bird ? Bird.BirdMaxHp : SmartObject.MaxHp;
-                double hpDeficit = 1.0 - (smartObject.HP / effectiveMaxHp);
+                double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
                 double staminaDeficit = 1.0 - (smartObject.Stamina / SmartObject.MaxStamina);
                 smart.Perception.FillInputs(smart.CachedInputs, hpDeficit, staminaDeficit);
 
@@ -210,19 +209,21 @@ namespace AI_Evlo_Test
                         continue;
 
                     // Update UI
-                    int maxHp = smartObject is Bird ? Bird.BirdMaxHp : SmartObject.MaxHp;
-                    smartObject.VisibleShape.Opacity = (2 * smartObject.HP / maxHp);
+                    SmartObject smart = (SmartObject)smartObject;
+                    smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
                     if (smartObject.VisibleShape is Polygon polygon)
                         polygon.Stroke = smartObject.IsGettingHP ? Brushes.GreenYellow : Brushes.OrangeRed;
 
-                    double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), (smartObject as SmartObject).FaceDirection);
+                    double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
                     smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
 
-                    // Animate frog sprite
-                    if (smartObject is Frog frog && smartObject.VisibleShape is Image img)
-                        img.Source = frog.GetNextSpriteFrame();
-                    else if (smartObject is Bird bird && smartObject.VisibleShape is Image birdImage)
-                        birdImage.Source = bird.GetCurrentSpriteFrame();
+                    // Animate species sprite
+                    if (smartObject.VisibleShape is Image img)
+                    {
+                        BitmapImage frame = smart.GetSpriteFrame();
+                        if (frame != null)
+                            img.Source = frame;
+                    }
 
                     DrawImage(smartObject.VisibleShape, smartObject.Location);
                 }
@@ -335,17 +336,14 @@ namespace AI_Evlo_Test
                 _sensableSnapshot.Add(target);
             }
 
-            // Agents — tag category based on species and state
+            // Agents — each species reports its own perception category
             foreach (Population pop in lsPopulations)
             {
                 foreach (ISmartObject member in pop.Members)
                 {
                     if (member is SmartObject smart)
                     {
-                        if (smart is Bird bird)
-                            smart.Category = bird.IsLanded ? ObjectCategory.Bird_Landed : ObjectCategory.Bird;
-                        else
-                            smart.Category = ObjectCategory.Frog;
+                        smart.Category = smart.SenseCategory;
                         _sensableSnapshot.Add(smart);
                     }
                 }
@@ -370,11 +368,6 @@ namespace AI_Evlo_Test
         List<Label> lsPopuLabels = new List<Label>();
         readonly List<ISensable> _sensableSnapshot = new List<ISensable>();
 
-        /// <summary>Frogs cannot see other frogs — only birds and rafts.</summary>
-        private static readonly ObjectCategory[] _frogIgnoredCategories = new[]
-        {
-            ObjectCategory.Frog
-        };
         private void UpdateLabbels()
         {
             if (DateTime.Now.Subtract(dtLastLabelsUpdate) < new TimeSpan(0, 0, 0, 0, 200))
@@ -391,7 +384,8 @@ namespace AI_Evlo_Test
                     $"{GetObjectKindName(SelectedObject)} {SelectedObject.ID}  |  Gen {SelectedObject.Generation} | Lived {SelectedObject.Cycles} cycles"
                     + Environment.NewLine +
                     $"HP: {(int)SelectedObject.HP}/{selectedMaxHp}  |  Stamina: {staminaPct}%"
-                    + (SelectedObject is Bird selectedBird ? $"  |  Frogs eaten: {selectedBird.FrogsEaten}" : "");
+                    + (SelectedObject is Bird selectedBird ? $"  |  Frogs eaten: {selectedBird.FrogsEaten}" : "")
+                    + (SelectedObject is Shark selectedShark ? $"  |  Frogs eaten: {selectedShark.FrogsEaten}" : "");
                 lblID.Content = agentInfo;
                 lblID.ToolTip = agentInfo;
             }
@@ -492,60 +486,52 @@ namespace AI_Evlo_Test
         {
             Targets.ForEach(t => t.ObjectsOnTop = 0);
 
-            List<Tuple<Bird, TargetObj>> landedBirds = new List<Tuple<Bird, TargetObj>>();
-            List<Tuple<Frog, TargetObj>> frogsOnRafts = new List<Tuple<Frog, TargetObj>>();
+            RaftTickContext ctx = new RaftTickContext { Rafts = Targets };
 
+            // Each species applies its own raft/water rules and registers as predator/prey
             foreach (ISmartObject smartObject in lsObjects)
+                ((SmartObject)smartObject).InteractWithRafts(ctx);
+
+            ResolveBirdHunts(ctx.LandedHungryBirds, ctx.FrogsOnRafts);
+            ResolveSharkHunts(ctx.HungrySharks, ctx.FrogsInWater);
+        }
+
+        private void ResolveSharkHunts(List<Shark> hungrySharks, List<Frog> frogsInWater)
+        {
+            if (hungrySharks.Count == 0 || frogsInWater.Count == 0)
+                return;
+
+            HashSet<ISmartObject> frogsToDispose = new HashSet<ISmartObject>();
+
+            foreach (Shark shark in hungrySharks)
             {
-                if (smartObject is Bird bird)
+                Frog nearestFrog = null;
+                double nearestDistanceSq = Shark.HuntRange * Shark.HuntRange;
+
+                foreach (Frog frog in frogsInWater)
                 {
-                    // Birds: check each raft for landing, but ignore water/raft HP modifiers
-                    TargetObj landedRaft = null;
-                    foreach (TargetObj target in Targets)
-                    {
-                        double raftRadius = target.Size / 2D;
-                        Vector toTarget = Point.Subtract(target.Location, smartObject.Location);
-                        if (toTarget.LengthSquared <= raftRadius * raftRadius)
-                        {
-                            target.ObjectsOnTop++;
-                            if (target.HpCharge > 0 && landedRaft == null)
-                                landedRaft = target;
-                        }
-                    }
+                    if (frogsToDispose.Contains(frog))
+                        continue;
 
-                    bird.IsLanded = landedRaft != null;
-                    smartObject.IsGettingHP = false;
-                    smartObject.HP -= bird.IsLanded ? Bird.LandedHpDrain : Bird.FlightHpDrain;
-                    if (bird.IsLanded && bird.IsHungry)
-                        landedBirds.Add(Tuple.Create(bird, landedRaft));
+                    Vector distanceVector = Point.Subtract(frog.Location, shark.Location);
+                    double distanceSq = distanceVector.LengthSquared;
+                    if (distanceSq > nearestDistanceSq)
+                        continue;
 
+                    nearestDistanceSq = distanceSq;
+                    nearestFrog = frog;
+                }
+
+                if (nearestFrog == null)
                     continue;
-                }
 
-                // Frogs / other agents: check every target independently (original behavior)
-                smartObject.IsGettingHP = false;
-                foreach (TargetObj target in Targets)
-                {
-                    double raftRadius = target.Size / 2D;
-                    Vector toTarget = Point.Subtract(target.Location, smartObject.Location);
-                    if (toTarget.LengthSquared <= raftRadius * raftRadius)
-                    {
-                        target.ObjectsOnTop++;
-                        smartObject.HP += target.HpCharge;
-                        if (target.HpCharge > 0)
-                        {
-                            smartObject.IsGettingHP = true;
-                            if (smartObject is Frog frog)
-                                frogsOnRafts.Add(Tuple.Create(frog, target));
-                        }
-                    }
-                }
-
-                // The environment takes HP from all non-bird agents
-                smartObject.HP -= 0.35;
+                shark.HP += Shark.HuntHpGain;
+                shark.FrogsEaten++;
+                frogsToDispose.Add(nearestFrog);
             }
 
-            ResolveBirdHunts(landedBirds, frogsOnRafts);
+            foreach (ISmartObject frog in frogsToDispose)
+                DisposeObject(frog);
         }
 
         private void ResolveBirdHunts(List<Tuple<Bird, TargetObj>> landedBirds, List<Tuple<Frog, TargetObj>> frogsOnRafts)
@@ -594,6 +580,8 @@ namespace AI_Evlo_Test
         {
             if (smartObject is Bird)
                 return "Bird";
+            if (smartObject is Shark)
+                return "Shark";
 
             return smartObject is Frog ? "Frog" : "Agent";
         }

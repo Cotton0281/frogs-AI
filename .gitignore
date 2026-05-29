@@ -12,6 +12,19 @@ obj/
 # Packages
 packages/
 
+# Signing keys — should never be committed/deployed
+*.pfx
+*.snk
+
+# Visual Studio source-control bindings (MSSCCI/SAK)
+*.vspscc
+*.vssscc
+*.scc
+
+# ClickOnce publish output
+publish/
+app.publish/
+
 # Logs
 *.log
 

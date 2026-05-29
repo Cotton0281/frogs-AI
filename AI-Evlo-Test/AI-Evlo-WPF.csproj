@@ -133,6 +133,9 @@
     <Compile Include="Objects\ISensable.cs" />
     <Compile Include="Objects\Path_spiral.cs" />
     <Compile Include="Objects\Population.cs" />
+    <Compile Include="Objects\RaftTickContext.cs" />
+    <Compile Include="Objects\Shark.cs" />
+    <Compile Include="Objects\SharkSpriteCache.cs" />
     <Compile Include="Objects\RayPerception.cs" />
     <Compile Include="Objects\RayVisualizer.cs" />
     <Compile Include="Objects\Target.cs" />

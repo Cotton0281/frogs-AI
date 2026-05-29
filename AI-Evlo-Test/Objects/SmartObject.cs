@@ -6,6 +6,7 @@ using ArtificialNeuralNetwork.WeightInitializer;
 using System;
 using System.Text;
 using System.Windows;
+using System.Windows.Media.Imaging;
 
 namespace AI_Evlo_Test.Objects
 {
@@ -133,7 +134,28 @@ namespace AI_Evlo_Test.Objects
         public double Stamina { get; set; } = 200;
 
         /// <summary>Per-instance HP ceiling. Override in subclasses to raise the cap.</summary>
-        protected virtual int EffectiveMaxHp => MaxHp;
+        public virtual int EffectiveMaxHp => MaxHp;
+
+        /// <summary>
+        /// The category this agent broadcasts to other agents' perception rays.
+        /// Overridden per species (and per state, e.g. landed birds).
+        /// </summary>
+        public virtual ObjectCategory SenseCategory => ObjectCategory.Frog;
+
+        /// <summary>
+        /// Categories this agent's own rays cannot perceive. Null means "sees everything".
+        /// Base agents (frogs) cannot see other frogs.
+        /// </summary>
+        public virtual ObjectCategory[] IgnoredCategories => FrogIgnoredCategories;
+
+        /// <summary>Shared "frogs can't see frogs" filter to avoid per-tick allocation.</summary>
+        protected static readonly ObjectCategory[] FrogIgnoredCategories = { ObjectCategory.Frog };
+
+        /// <summary>
+        /// Returns the sprite frame to display this tick, or null for shape-based agents.
+        /// Overridden by species that animate (Frog, Bird, Shark).
+        /// </summary>
+        public virtual BitmapImage GetSpriteFrame() => null;
 
         public double HP
         {
@@ -162,7 +184,7 @@ namespace AI_Evlo_Test.Objects
         /// Movement is scaled by current stamina fraction so exhausted agents slow down.
         /// </summary>
         /// <param name="arrayInputs"></param>
-        public double[] Act(double[] arrayInputs)
+        public virtual double[] Act(double[] arrayInputs)
         {
             Cycles++;
             double[] dblOutputs;
@@ -192,6 +214,41 @@ namespace AI_Evlo_Test.Objects
             Stamina = Math.Min(MaxStamina, Stamina + StaminaRegenRate);
 
             return dblOutputs;
+        }
+
+        /// <summary>
+        /// Per-tick interaction with rafts and open water. Base behavior is the swimmer
+        /// (frog-like): rest and gain HP on a charged raft, otherwise lose HP in open water.
+        /// Birds and sharks override this with predator behavior.
+        /// </summary>
+        public virtual void InteractWithRafts(RaftTickContext ctx)
+        {
+            IsGettingHP = false;
+            bool onAnyRaft = false;
+
+            foreach (TargetObj raft in ctx.Rafts)
+            {
+                double raftRadius = raft.Size / 2D;
+                Vector toRaft = Point.Subtract(raft.Location, Location);
+                if (toRaft.LengthSquared <= raftRadius * raftRadius)
+                {
+                    raft.ObjectsOnTop++;
+                    onAnyRaft = true;
+                    HP += raft.HpCharge;
+                    if (raft.HpCharge > 0)
+                    {
+                        IsGettingHP = true;
+                        if (this is Frog frog)
+                            ctx.FrogsOnRafts.Add(Tuple.Create(frog, raft));
+                    }
+                }
+            }
+
+            // The environment takes HP from all swimmers each tick
+            HP -= 0.35;
+
+            if (!onAnyRaft && this is Frog waterFrog)
+                ctx.FrogsInWater.Add(waterFrog);
         }
 
         public SmartObject()

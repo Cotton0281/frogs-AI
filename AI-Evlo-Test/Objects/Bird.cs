@@ -2,6 +2,7 @@ using AI_Evlo_Test.ConfigLib;
 using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.WeightInitializer;
 using System;
+using System.Windows;
 using System.Windows.Media.Imaging;
 
 namespace AI_Evlo_Test.Objects
@@ -21,7 +22,9 @@ namespace AI_Evlo_Test.Objects
         public const double LandedHpDrain = 0.08;
         public const double HuntHpGain = 200;
         public const double HuntRange = 10; // decreased from 34
-        public const double SpeedMultiplier = 0.5;
+
+        /// <summary>Birds move 1.3× the base agent speed — a slight edge over frogs.</summary>
+        public const double SpeedMultiplier = 1.3;
         public static int BirdMaxHp => MaxHp * 5;
 
         /// <summary>Birds can only hunt when HP is below this fraction of BirdMaxHp.</summary>
@@ -31,7 +34,42 @@ namespace AI_Evlo_Test.Objects
         public bool IsHungry => HP < BirdMaxHp * HuntHpThreshold;
 
         /// <summary>Birds have 5× the base HP cap.</summary>
-        protected override int EffectiveMaxHp => BirdMaxHp;
+        public override int EffectiveMaxHp => BirdMaxHp;
+
+        /// <summary>Birds broadcast as landed or flying so frogs can react accordingly.</summary>
+        public override ObjectCategory SenseCategory => IsLanded ? ObjectCategory.Bird_Landed : ObjectCategory.Bird;
+
+        /// <summary>Birds see everything — they hunt by sight.</summary>
+        public override ObjectCategory[] IgnoredCategories => null;
+
+        public override BitmapImage GetSpriteFrame() => GetCurrentSpriteFrame();
+
+        /// <summary>
+        /// Birds fly over the water and land on rafts. They ignore raft HP charge, drain HP
+        /// (less when resting), and register as predators when landed, hungry, and on a raft.
+        /// </summary>
+        public override void InteractWithRafts(RaftTickContext ctx)
+        {
+            TargetObj landedRaft = null;
+            foreach (TargetObj raft in ctx.Rafts)
+            {
+                double raftRadius = raft.Size / 2D;
+                Vector toRaft = Point.Subtract(raft.Location, Location);
+                if (toRaft.LengthSquared <= raftRadius * raftRadius)
+                {
+                    raft.ObjectsOnTop++;
+                    if (raft.HpCharge > 0 && landedRaft == null)
+                        landedRaft = raft;
+                }
+            }
+
+            IsLanded = landedRaft != null;
+            IsGettingHP = false;
+            HP -= IsLanded ? LandedHpDrain : FlightHpDrain;
+
+            if (IsLanded && IsHungry)
+                ctx.LandedHungryBirds.Add(Tuple.Create(this, landedRaft));
+        }
 
         /// <summary>Number of frogs this bird has eaten.</summary>
         public int FrogsEaten { get; set; }
@@ -85,9 +123,9 @@ namespace AI_Evlo_Test.Objects
         }
 
         /// <summary>
-        /// Birds move at 2x the base max speed. Overrides base Act to apply the speed multiplier.
+        /// Birds move faster than the base agent. Overrides base Act to apply the speed multiplier.
         /// </summary>
-        public new double[] Act(double[] arrayInputs)
+        public override double[] Act(double[] arrayInputs)
         {
             double[] outputs = base.Act(arrayInputs);
             if (outputs.Length > 0)

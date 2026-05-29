@@ -31,6 +31,7 @@ namespace AI_Evlo_Test.Objects
         private static readonly Brush BrushRaftSunk = Brushes.MediumPurple;
         private static readonly Brush BrushAlly = Brushes.Gold;
         private static readonly Brush BrushOther = Brushes.OrangeRed;
+        private static readonly Brush BrushShark = Brushes.Crimson;
         private static readonly Brush BrushHitDot = Brushes.White;
 
         private const double RayOpacity = 0.5;
@@ -159,6 +160,7 @@ namespace AI_Evlo_Test.Objects
                 case ObjectCategory.Frog: return BrushAlly;
                 case ObjectCategory.Bird: return BrushOther;
                 case ObjectCategory.Bird_Landed: return BrushOther;
+                case ObjectCategory.Shark: return BrushShark;
                 default: return BrushMiss;
             }
         }

@@ -144,6 +144,20 @@ namespace AI_Evlo_Test
             return newObj;
         }
 
+        private Shark NewShark(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
+        {
+            Shark newObj = new Shark(NeuroNetTemplate, ref randomInit);
+            newObj.VisibleShape = CreateNewSharkImage();
+            Canvas.SetZIndex(newObj.VisibleShape, -1); // under water — beneath rafts and birds
+            newObj.VisibleShape.MouseDown += ObjectInterface_MouseDown;
+            shapeToObjectMap[newObj.VisibleShape] = newObj;
+            double initLocationX = (panlUniverseView.ActualWidth / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
+            double initLocationY = (panlUniverseView.ActualHeight / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
+            newObj.SetLocation(initLocationX, initLocationY);
+            DrawImage(newObj.VisibleShape, newObj.Location);
+            return newObj;
+        }
+
         private Frog NewFrog(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             Frog newObj = new Frog(NeuroNetTemplate, ref randomInit);
@@ -226,11 +240,15 @@ namespace AI_Evlo_Test
             INeuralNetwork NNetworkMutated = Utils.CloneNeuroNet(objParent.NNetwork);
             objParent.Ofsprings++;
             NNetworkMutated = evoChember.MutateNN(NNetworkMutated, 1, false);
-            ISmartObject newGenerationObj = objParent is Bird || population.Being == PopulationBeing.Bird
-                ? (ISmartObject)new Bird(NNetworkMutated)
-                : objParent is Frog
-                    ? (ISmartObject)new Frog(NNetworkMutated)
-                    : new SmartObject(NNetworkMutated);
+            ISmartObject newGenerationObj;
+            if (objParent is Bird || population.Being == PopulationBeing.Bird)
+                newGenerationObj = new Bird(NNetworkMutated);
+            else if (objParent is Shark || population.Being == PopulationBeing.Shark)
+                newGenerationObj = new Shark(NNetworkMutated);
+            else if (objParent is Frog)
+                newGenerationObj = new Frog(NNetworkMutated);
+            else
+                newGenerationObj = new SmartObject(NNetworkMutated);
             if (!isHeadlessMode)
                 EnsureVisualForObject(newGenerationObj, population);
 
@@ -262,6 +280,11 @@ namespace AI_Evlo_Test
             {
                 smartObject.VisibleShape = CreateNewBirdImage();
                 Canvas.SetZIndex(smartObject.VisibleShape, 1);
+            }
+            else if (smartObject is Shark)
+            {
+                smartObject.VisibleShape = CreateNewSharkImage();
+                Canvas.SetZIndex(smartObject.VisibleShape, -1);
             }
             else
             {
@@ -333,6 +356,23 @@ namespace AI_Evlo_Test
             dynamicImage.Source = BirdSpriteCache.FlightFrames[0];
             dynamicImage.Width = 40;
             dynamicImage.Height = 40;
+            dynamicImage.RenderTransformOrigin = new Point(0.5, 0.5);
+
+            panlUniverseView.Children.Add(dynamicImage);
+
+            Canvas.SetTop(dynamicImage, 67);
+            Canvas.SetLeft(dynamicImage, 66);
+
+            return dynamicImage;
+        }
+
+        private FrameworkElement CreateNewSharkImage()
+        {
+            Image dynamicImage = new Image();
+            dynamicImage.Source = SharkSpriteCache.SwimFrames[0];
+            dynamicImage.Width = 50;
+            dynamicImage.Height = 50;
+            dynamicImage.Opacity = 0.85;
             dynamicImage.RenderTransformOrigin = new Point(0.5, 0.5);
 
             panlUniverseView.Children.Add(dynamicImage);
@@ -417,14 +457,25 @@ namespace AI_Evlo_Test
 
         private static Type GetObjectTypeForBeing(PopulationBeing being)
         {
-            return being == PopulationBeing.Bird ? typeof(Bird) : typeof(Frog);
+            switch (being)
+            {
+                case PopulationBeing.Bird: return typeof(Bird);
+                case PopulationBeing.Shark: return typeof(Shark);
+                default: return typeof(Frog);
+            }
         }
 
         private ISmartObject CreatePopulationMember(Population population)
         {
-            return population.Being == PopulationBeing.Bird
-                ? (ISmartObject)NewBird(population.NeuroNetTemplate, population.PopulationColorBrush)
-                : NewFrog(population.NeuroNetTemplate, population.PopulationColorBrush);
+            switch (population.Being)
+            {
+                case PopulationBeing.Bird:
+                    return NewBird(population.NeuroNetTemplate, population.PopulationColorBrush);
+                case PopulationBeing.Shark:
+                    return NewShark(population.NeuroNetTemplate, population.PopulationColorBrush);
+                default:
+                    return NewFrog(population.NeuroNetTemplate, population.PopulationColorBrush);
+            }
         }
     }
 }

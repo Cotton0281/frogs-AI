@@ -231,10 +231,22 @@ namespace AI_Evlo_Test
             }
             // create and add members
             Population newPopulation = CreatePopulation(chosenSize, ddlPopulationName.Text.Trim(), chosenNNType, chosenBeing);
-            newPopulation.StartingCycle = CycleCount;
+            RegisterPopulation(newPopulation);
+        }
 
+        /// <summary>
+        /// Wires a freshly created (or restored) population into the UI: list, dropdown,
+        /// info label, and selection. Shared by the "Create New" button and the auto-seeder.
+        /// </summary>
+        private void RegisterPopulation(Population newPopulation)
+        {
+            if (newPopulation == null)
+                return;
+
+            newPopulation.StartingCycle = CycleCount;
             lsPopulations.Add(newPopulation);
-            SelectObject(lsObjects.Last());
+            if (lsObjects.Count > 0)
+                SelectObject(lsObjects.Last());
             Log($"{GetPopulationBeingName(newPopulation.Being)} population of {newPopulation.SizeLimit} created. Total:{lsObjects.Count} " +
                 $" Hiddden Layers:{newPopulation.NeuroNetTemplate.HiddenLayers}" +
                 $" Neurons per layer:{newPopulation.NeuroNetTemplate.NeuronsInHiddenLayer}");
@@ -392,6 +404,7 @@ namespace AI_Evlo_Test
         {
             InitTargets();
             rayVisualizer = new RayVisualizer(panlUniverseView, 8);
+            RestoreOrSeedDefaultScenario();
         }
 
         private void BtnDeleteObject_Click(object sender, RoutedEventArgs e)
@@ -470,9 +483,11 @@ namespace AI_Evlo_Test
         private PopulationBeing GetSelectedPopulationBeing()
         {
             string beingName = (ddlPopulationBeing.SelectedItem as ComboBoxItem)?.Content?.ToString();
-            return string.Equals(beingName, "Birds", StringComparison.OrdinalIgnoreCase)
-                ? PopulationBeing.Bird
-                : PopulationBeing.Frog;
+            if (string.Equals(beingName, "Birds", StringComparison.OrdinalIgnoreCase))
+                return PopulationBeing.Bird;
+            if (string.Equals(beingName, "Sharks", StringComparison.OrdinalIgnoreCase))
+                return PopulationBeing.Shark;
+            return PopulationBeing.Frog;
         }
 
         private void SelectPopulationBeing(PopulationBeing being)
@@ -490,7 +505,12 @@ namespace AI_Evlo_Test
 
         private static string GetPopulationBeingName(PopulationBeing being)
         {
-            return being == PopulationBeing.Bird ? "Birds" : "Frogs";
+            switch (being)
+            {
+                case PopulationBeing.Bird: return "Birds";
+                case PopulationBeing.Shark: return "Sharks";
+                default: return "Frogs";
+            }
         }
 
         private void BtnNewObject_Copy_Click(object sender, RoutedEventArgs e)
@@ -618,19 +638,142 @@ namespace AI_Evlo_Test
         private void windowEnvirnoment_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             Clock.Stop();
-            lblStatusBar.Content += $"Saving {lsPopulations.Count} populations.";
-            foreach (Population po in lsPopulations)
+            try
             {
-                SavePopulations(po);
+                // Replace last session's snapshot with the current populations
+                string dir = SaveDirectory;
+                foreach (string stale in Directory.GetFiles(dir, "*.json"))
+                    File.Delete(stale);
+                foreach (Population po in lsPopulations)
+                    SavePopulations(po);
+                lblStatusBar.Content = $"Saved {lsPopulations.Count} population(s) to {dir}";
             }
-            lblStatusBar.Content += $"Populations saved.";
+            catch (Exception ex)
+            {
+                lblStatusBar.Content = "Could not save populations: " + ex.Message;
+            }
+        }
+
+        /// <summary>Per-user folder holding the last session's populations.</summary>
+        private static string SaveDirectory
+        {
+            get
+            {
+                string dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "AI-Evlo", "populations");
+                Directory.CreateDirectory(dir);
+                return dir;
+            }
         }
 
         private void SavePopulations(Population objPopulation)
         {
-            lblStatusBar.Content += $"Saving  population {objPopulation.ID}";
-            string appPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            WriteToJsonFile(appPath+"\\" + objPopulation.ID + ".json", (Population)objPopulation);
+            WriteToJsonFile(System.IO.Path.Combine(SaveDirectory, objPopulation.ID + ".json"), (Population)objPopulation);
+        }
+
+        /// <summary>
+        /// On first paint: restore the last saved session if any, otherwise seed the default
+        /// scenario (2 rafts, 50 frogs, 10 birds with fresh random brains). Then start running.
+        /// </summary>
+        private void RestoreOrSeedDefaultScenario()
+        {
+            if (lsPopulations.Count > 0)
+                return;
+
+            int restored = TryRestoreSavedPopulations();
+            if (restored > 0)
+            {
+                Log($"Welcome back — restored {restored} saved population(s) from your last session. Resuming evolution…");
+                StartSimulation();
+                return;
+            }
+
+            LoadDefaultScenario();
+        }
+
+        private int TryRestoreSavedPopulations()
+        {
+            int count = 0;
+            try
+            {
+                foreach (string file in Directory.GetFiles(SaveDirectory, "*.json"))
+                {
+                    try
+                    {
+                        Population pop = ReadFromJsonFile<Population>(file);
+                        if (pop == null || pop.SizeLimit < 1)
+                            continue;
+                        RestorePopulation(pop);
+                        count++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"Skipped a saved population ({System.IO.Path.GetFileName(file)}): {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Could not read saved populations: " + ex.Message);
+            }
+            return count;
+        }
+
+        /// <summary>Rebuilds runtime state for a deserialized population and grows live members from its archived genes.</summary>
+        private void RestorePopulation(Population pop)
+        {
+            pop.ObjectType = GetObjectTypeForBeing(pop.Being);
+            if (pop.NeuroNetTemplate == null)
+                pop.NeuroNetTemplate = NeuroNetStructure.Small_1Lx9N();
+            if (pop.Members == null)
+                pop.Members = new List<ISmartObject>();
+            pop.Members.Clear();
+
+            ReGrowPopulation(pop);   // recreates members from lsBestGenes (or random if none)
+            RegisterPopulation(pop);
+        }
+
+        private void LoadDefaultScenario()
+        {
+            Log("No saved populations found — setting up a fresh ecosystem.");
+
+            if (eEnvironmentType != EEnvironmentType.TwoTargets)
+            {
+                eEnvironmentType = EEnvironmentType.TwoTargets;
+                InitTargets();
+            }
+
+            Log("Seeding 50 frogs and 10 birds with brand-new random brains on 2 rafts…");
+            SeedPopulation(50, "Frogs", "Small", PopulationBeing.Frog);
+            SeedPopulation(10, "Birds", "Small", PopulationBeing.Bird);
+
+            Log("Evolution begins now. Frogs must rest on rafts to survive; birds hunt frogs that linger on a raft.");
+            Log("Tip: click any agent to inspect its brain, or use the Populations panel to add a Sharks population.");
+            StartSimulation();
+        }
+
+        /// <summary>Creates and registers a population with a name made unique against existing ones.</summary>
+        private Population SeedPopulation(int size, string name, string nnType, PopulationBeing being)
+        {
+            string uniqueName = name;
+            int n = 1;
+            while (lsPopulations.Exists(p => p.Name == uniqueName))
+                uniqueName = name + "_" + (n++);
+
+            Population pop = CreatePopulation(size, uniqueName, nnType, being);
+            RegisterPopulation(pop);
+            return pop;
+        }
+
+        private void StartSimulation()
+        {
+            if (!Clock.IsEnabled)
+            {
+                Clock.Start();
+                btnStart.Content = "Pause";
+                Log("Started at " + DateTime.Now.ToShortTimeString());
+            }
         }
 
         /// <summary>

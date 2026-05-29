@@ -14,7 +14,8 @@ namespace AI_Evlo_Test.Objects
         Raft_Sunk = 2,
         Frog = 3,
         Bird = 4,
-        Bird_Landed = 5
+        Bird_Landed = 5,
+        Shark = 6
     }
 
     internal static class ObjectCategoryExtensions

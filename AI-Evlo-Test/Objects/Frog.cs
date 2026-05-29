@@ -10,7 +10,7 @@ namespace AI_Evlo_Test.Objects
     /// <summary>
     /// Frog is a SmartObject that has is visualized with image of frog instead of shape.
     /// </summary>
-    internal class Frog : SmartObject, ISmartObject
+    public class Frog : SmartObject, ISmartObject
     {
         private static readonly Random SpriteRandom = new Random();
         private static readonly object SpriteRandomLock = new object();
@@ -40,6 +40,8 @@ namespace AI_Evlo_Test.Objects
             Size = 32;
             InitializeSpriteRhythm();
         }
+
+        public override BitmapImage GetSpriteFrame() => GetNextSpriteFrame();
 
         public BitmapImage GetNextSpriteFrame()
         {
