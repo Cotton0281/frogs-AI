@@ -63,16 +63,20 @@ Sharks are drawn with `Canvas` Z-index **-1**, placing them under the rafts and 
 ## Sprite sheet (`img/Shark.png`)
 
 The shark is animated from a single **sprite sheet**: one image containing all frames in a grid,
-sliced at load time into individual frozen frames (`SharkSpriteCache` uses WPF `CroppedBitmap`).
+sliced at load time into individual frozen frames (`SharkSpriteCache` → `SpriteSheet.Slice`,
+using WPF `CroppedBitmap`). The sheet is loaded as an embedded **Resource via a pack URI**, so it
+resolves regardless of the working directory and is immune to Visual Studio flipping the image's
+build action between Content and Resource.
 
-| Property      | Value                         |
-|---------------|-------------------------------|
-| File          | `img/Shark.png`               |
-| Sheet size    | 1254 × 1254 px                |
-| Grid          | 4 columns × 4 rows            |
-| Total frames  | 16                            |
-| Frame size    | ~313 × 313 px                 |
-| Frame index   | `row * 4 + column`            |
+| Property      | Value                                          |
+|---------------|------------------------------------------------|
+| File          | `img/shark_sprite_sheet_1024_256px_frames.png` |
+| Build action  | Resource                                       |
+| Sheet size    | 1024 × 1024 px                                 |
+| Grid          | 4 columns × 4 rows                             |
+| Total frames  | 16                                             |
+| Frame size    | 256 × 256 px                                   |
+| Frame index   | `row * 4 + column` (left-to-right, top-to-bottom) |
 
 ### Frame layout
 
@@ -97,9 +101,9 @@ sliced at load time into individual frozen frames (`SharkSpriteCache` uses WPF `
 
 ```json
 {
-  "image": "img/Shark.png",
+  "image": "img/shark_sprite_sheet_1024_256px_frames.png",
   "grid": { "columns": 4, "rows": 4 },
-  "frameSize": { "width": 313, "height": 313 },
+  "frameSize": { "width": 256, "height": 256 },
   "animations": {
     "swimForward": [0, 1, 2, 3],
     "turnLeft":    [4, 5, 6, 7],
@@ -109,8 +113,8 @@ sliced at load time into individual frozen frames (`SharkSpriteCache` uses WPF `
 }
 ```
 
-> Note: the frog and bird sprites currently use individual image files. A frog sprite **sheet**
-> is planned; when added it can follow this same slice-at-load approach (see `SharkSpriteCache`).
+> The frog uses the same slice-at-load approach via `FrogSheetCache` (see Frog.md). Birds still
+> use individual image files.
 
 ## Evolution
 

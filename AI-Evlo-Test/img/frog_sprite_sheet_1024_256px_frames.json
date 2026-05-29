@@ -1,0 +1,77 @@
+{
+  "image": "frog_sprite_sheet_1024_256px_frames.png",
+  "grid": {
+    "columns": 4,
+    "rows": 4
+  },
+  "frameSize": {
+    "width": 256,
+    "height": 256
+  },
+  "totalFrames": 16,
+  "sheetSize": {
+    "width": 1024,
+    "height": 1024
+  },
+  "frameIndexing": "left-to-right, top-to-bottom",
+  "animations": {
+    "swimForward": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "loop": true,
+      "description": "Forward swimming cycle with alternating leg kicks"
+    },
+    "turnLeft": {
+      "frames": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "loop": true,
+      "description": "Left turn swimming cycle"
+    },
+    "turnRight": {
+      "frames": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "loop": true,
+      "description": "Right turn swimming cycle"
+    },
+    "fastSwim": {
+      "frames": [
+        12,
+        13,
+        14,
+        15
+      ],
+      "loop": true,
+      "description": "Fast swim burst / strong kick cycle"
+    }
+  },
+  "frameDescriptions": {
+    "0": "forward swim - legs tucked / recovery",
+    "1": "forward swim - one leg extended back",
+    "2": "forward swim - alternate leg kick",
+    "3": "forward swim - strong full extension",
+    "4": "turn left - start turn",
+    "5": "turn left - asymmetric kick",
+    "6": "turn left - extended push",
+    "7": "turn left - recovery while angled left",
+    "8": "turn right - start turn",
+    "9": "turn right - asymmetric kick",
+    "10": "turn right - extended push",
+    "11": "turn right - recovery while angled right",
+    "12": "fast swim - wide kick",
+    "13": "fast swim - full stretched glide",
+    "14": "fast swim - strong spread-leg push",
+    "15": "fast swim - recovery / ready pose"
+  }
+}

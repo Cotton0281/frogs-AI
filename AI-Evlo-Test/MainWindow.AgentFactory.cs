@@ -389,7 +389,7 @@ namespace AI_Evlo_Test
             Image dynamicImage = new Image();
 
             // Set Image.Source
-            dynamicImage.Source = FrogSpriteCache.IdleFrames[0];
+            dynamicImage.Source = FrogSheetCache.Frame(0);
             // scale dynamicImage to half size
             dynamicImage.Width = 32;
             dynamicImage.Height = 32;

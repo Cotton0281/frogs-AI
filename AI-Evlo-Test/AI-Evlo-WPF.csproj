@@ -80,9 +80,6 @@
     <SignManifests>false</SignManifests>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Avapi, Version=1.4.8.3, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Avapi.1.4.8.3\lib\netstandard2.0\Avapi.dll</HintPath>
-    </Reference>
     <Reference Include="NeuralNetwork, Version=7.4.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\NeuralNetwork.7.4.0\lib\net451\NeuralNetwork.dll</HintPath>
     </Reference>
@@ -136,6 +133,8 @@
     <Compile Include="Objects\RaftTickContext.cs" />
     <Compile Include="Objects\Shark.cs" />
     <Compile Include="Objects\SharkSpriteCache.cs" />
+    <Compile Include="Objects\FrogSheetCache.cs" />
+    <Compile Include="Objects\SpriteSheet.cs" />
     <Compile Include="Objects\RayPerception.cs" />
     <Compile Include="Objects\RayVisualizer.cs" />
     <Compile Include="Objects\Target.cs" />
@@ -216,6 +215,8 @@
     <Content Include="img\bird1.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Resource Include="img\shark_sprite_sheet_1024_256px_frames.png" />
+    <Resource Include="img\frog_sprite_sheet.png" />
     <Resource Include="img\bird2.jpg" />
     <Resource Include="img\bird3.jpg" />
     <Resource Include="img\bird4.jpg" />
@@ -268,9 +269,6 @@
     <Content Include="img\raft.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="img\Shark.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">
@@ -283,9 +281,6 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Objects\Market\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

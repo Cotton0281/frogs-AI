@@ -64,7 +64,31 @@ Frogs on active rafts can be hunted by hungry, landed birds within hunt range (3
 
 ### Sprites
 
-Frogs cycle through 6 idle animation frames (`frog1_64.png` – `frog5_64.png`, `frog9_64.png`) with randomized frame timing (8–30 ticks per frame). Each frog starts at a random phase to desynchronize animations. When moving above 80% of max speed, the frog switches to a dedicated fast-movement frame (`frog8_64.png`).
+Frogs are animated from a **sprite sheet** (`img/frog_sprite_sheet.png`), sliced at load time into
+16 frozen frames (`FrogSheetCache` → `SpriteSheet.Slice`, WPF `CroppedBitmap`). The sheet is loaded
+as an embedded **Resource via a pack URI**, so it resolves regardless of the working directory and
+is immune to Visual Studio flipping the image's build action.
+
+| Property      | Value                         |
+|---------------|-------------------------------|
+| File          | `img/frog_sprite_sheet.png`   |
+| Build action  | Resource                      |
+| Sheet size    | 1024 × 1024 px                |
+| Grid          | 4 columns × 4 rows            |
+| Total frames  | 16                            |
+| Frame size    | 256 × 256 px                  |
+| Frame index   | `row * 4 + column` (left-to-right, top-to-bottom) |
+
+| Row | Frames | Animation     | Meaning                              |
+|-----|--------|---------------|--------------------------------------|
+| 0   | 0–3    | `swimForward` | forward swim, alternating leg kicks  |
+| 1   | 4–7    | `turnLeft`    | left turn cycle                      |
+| 2   | 8–11   | `turnRight`   | right turn cycle                     |
+| 3   | 12–15  | `fastSwim`    | fast burst / strong kick cycle       |
+
+At runtime the frog picks **fastSwim** when moving above 80% of max speed, otherwise **turnLeft** /
+**turnRight** when its last rotation exceeds a small threshold, otherwise **swimForward**. Frames
+advance on a randomized rhythm (8–30 ticks/frame), each frog starting at a random phase.
 
 ## Evolution
 

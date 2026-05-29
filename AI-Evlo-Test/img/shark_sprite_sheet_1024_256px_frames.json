@@ -1,0 +1,56 @@
+{
+  "image": "shark_sprite_sheet_1024_256px_frames.png",
+  "grid": {
+    "columns": 4,
+    "rows": 4
+  },
+  "frameSize": {
+    "width": 256,
+    "height": 256
+  },
+  "totalFrames": 16,
+  "frameIndexing": "left-to-right, top-to-bottom",
+  "animations": {
+    "swimForward": {
+      "frames": [0, 1, 2, 3],
+      "loop": true,
+      "description": "Forward swimming cycle with tail motion"
+    },
+    "turnLeft": {
+      "frames": [4, 5, 6, 7],
+      "loop": true,
+      "description": "Left turn swimming cycle"
+    },
+    "turnRight": {
+      "frames": [8, 9, 10, 11],
+      "loop": true,
+      "description": "Right turn swimming cycle"
+    },
+    "bite": {
+      "frames": [12, 13, 14, 15],
+      "loop": false,
+      "description": "Bite / attack cycle"
+    }
+  },
+  "frameDescriptions": {
+    "0": "forward swim - neutral",
+    "1": "forward swim - tail bends left",
+    "2": "forward swim - tail bends right",
+    "3": "forward swim - glide / recovery",
+
+    "4": "turn left - start turn",
+    "5": "turn left - stronger curve",
+    "6": "turn left - mid turn",
+    "7": "turn left - finish turn / recover",
+
+    "8": "turn right - start turn",
+    "9": "turn right - stronger curve",
+    "10": "turn right - mid turn",
+    "11": "turn right - finish turn / recover",
+
+    "12": "bite - mouth closed / neutral",
+    "13": "bite - mouth opening",
+    "14": "bite - mouth fully open / attack",
+    "15": "bite - mouth closed / recover"
+  }
+}

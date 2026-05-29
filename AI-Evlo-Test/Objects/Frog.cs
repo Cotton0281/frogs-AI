@@ -22,6 +22,10 @@ namespace AI_Evlo_Test.Objects
         private int _nextFrameAt;
         private int _idleFrameIndex;
 
+        /// <summary>Rotation magnitude (degrees) above which the turn animation is shown.</summary>
+        private const double TurnAnimationThreshold = 0.6;
+        private const int FramesPerAnimation = 4;
+
         public Frog()
         {
             Size = 32;
@@ -44,26 +48,33 @@ namespace AI_Evlo_Test.Objects
 
         public override ImageSource GetSpriteFrame() => GetNextSpriteFrame();
 
-        public BitmapImage GetNextSpriteFrame()
+        public ImageSource GetNextSpriteFrame()
         {
+            // Fast burst when moving quickly; otherwise swim, turning left/right by last rotation
+            int[] animation;
             if (MaxSpeed > 0 && LastSpeed > MaxSpeed * 0.8)
-                return FrogSpriteCache.FastFrame;
+                animation = FrogSheetCache.FastSwim;
+            else if (LastRotation < -TurnAnimationThreshold)
+                animation = FrogSheetCache.TurnLeft;
+            else if (LastRotation > TurnAnimationThreshold)
+                animation = FrogSheetCache.TurnRight;
+            else
+                animation = FrogSheetCache.SwimForward;
 
             _frameCounter++;
-
             if (_frameCounter >= _nextFrameAt)
             {
                 _frameCounter = 0;
-                _idleFrameIndex = (_idleFrameIndex + 1) % FrogSpriteCache.IdleFrames.Length;
+                _idleFrameIndex = (_idleFrameIndex + 1) % FramesPerAnimation;
                 _nextFrameAt = NextRandom(MinTicksToNextFrame, MaxTicksToNextFrame + 1);
             }
 
-            return FrogSpriteCache.IdleFrames[_idleFrameIndex];
+            return FrogSheetCache.Frame(animation[_idleFrameIndex % FramesPerAnimation]);
         }
 
         private void InitializeSpriteRhythm()
         {
-            _idleFrameIndex = NextRandom(0, FrogSpriteCache.IdleFrames.Length);
+            _idleFrameIndex = NextRandom(0, FramesPerAnimation);
             _nextFrameAt = NextRandom(MinTicksToNextFrame, MaxTicksToNextFrame + 1);
             _frameCounter = NextRandom(0, _nextFrameAt);
         }
