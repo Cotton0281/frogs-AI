@@ -132,6 +132,8 @@ namespace AI_Evlo_Test
 
             if (!isHeadlessMode)
             {
+                AnimateRafts();
+
                 // Draw line to selected agent
                 if (eEnvironmentType == EEnvironmentType.OneTarget)
                 {

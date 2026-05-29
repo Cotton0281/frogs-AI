@@ -120,13 +120,11 @@
     <Compile Include="MainWindow.AgentFactory.cs" />
     <Compile Include="MainWindow.Simulation.cs" />
     <Compile Include="Objects\Bird.cs" />
-    <Compile Include="Objects\BirdSpriteCache.cs" />
     <Compile Include="Objects\Configs.cs" />
     <Compile Include="Objects\Enumerators.cs" />
     <Compile Include="Objects\EvolutionChember.cs" />
     <Compile Include="Objects\BasicObjects.cs" />
     <Compile Include="Objects\Frog.cs" />
-    <Compile Include="Objects\FrogSpriteCache.cs" />
     <Compile Include="Objects\ISensable.cs" />
     <Compile Include="Objects\Path_spiral.cs" />
     <Compile Include="Objects\Population.cs" />
@@ -135,6 +133,7 @@
     <Compile Include="Objects\SharkSpriteCache.cs" />
     <Compile Include="Objects\BirdSheetCache.cs" />
     <Compile Include="Objects\FrogSheetCache.cs" />
+    <Compile Include="Objects\RaftSheetCache.cs" />
     <Compile Include="Objects\SpriteSheet.cs" />
     <Compile Include="Objects\RayPerception.cs" />
     <Compile Include="Objects\RayVisualizer.cs" />
@@ -196,6 +195,7 @@
     <None Include="data\Bird.md" />
     <None Include="data\Frog.md" />
     <None Include="img\bird_sprite_sheet_1024_256px_frames.json" />
+    <None Include="img\raft_sprite_sheet.json" />
     <None Include="packages.config" />
     <None Include="Properties\app.manifest" />
     <None Include="Properties\DataSources\AI_Evlo_Test.Objects.BasicObject.datasource" />
@@ -214,48 +214,10 @@
     <Resource Include="img\Help-icon.png" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="img\bird1.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <Resource Include="img\bird_sprite_sheet_1024_256px_frames.png" />
     <Resource Include="img\shark_sprite_sheet_1024_256px_frames.png" />
     <Resource Include="img\frog_sprite_sheet.png" />
-    <Content Include="img\bird2.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\bird3.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\bird4.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\bird5.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\bird_landed.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\frog1_64.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\frog2_64.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\frog3_64.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\frog4_64.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\frog5_64.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\frog8_64.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="img\frog9_64.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    <Resource Include="img\raft_sprite_sheet.png" />
     <Content Include="img\raft.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

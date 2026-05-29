@@ -45,8 +45,8 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Sharks have 5× the base HP cap, like birds.</summary>
         public static int SharkMaxHp => MaxHp * 5;
 
-        /// <summary>Sharks only hunt when HP is below this fraction of SharkMaxHp.</summary>
-        public const double HuntHpThreshold = 0.9;
+        /// <summary>Sharks only hunt when HP is below this fraction of SharkMaxHp (≤70%).</summary>
+        public const double HuntHpThreshold = 0.7;
 
         /// <summary>Returns true when the shark is hungry enough to hunt.</summary>
         public bool IsHungry => HP < SharkMaxHp * HuntHpThreshold;
@@ -59,8 +59,13 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Sharks broadcast as sharks so frogs can learn to avoid them.</summary>
         public override ObjectCategory SenseCategory => ObjectCategory.Shark;
 
-        /// <summary>Sharks see everything — they hunt by sight.</summary>
-        public override ObjectCategory[] IgnoredCategories => null;
+        /// <summary>
+        /// Sharks see rafts and frogs only — their vision is not obstructed by other sharks
+        /// or by birds (which fly above the water).
+        /// </summary>
+        private static readonly ObjectCategory[] SharkIgnored =
+            { ObjectCategory.Shark, ObjectCategory.Bird, ObjectCategory.Bird_Landed };
+        public override ObjectCategory[] IgnoredCategories => SharkIgnored;
 
         public Shark()
         {

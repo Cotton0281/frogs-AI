@@ -100,7 +100,7 @@ namespace AI_Evlo_Test
                 }
                 else if (eEnvironmentType == EEnvironmentType.TwoTargets)
                 {
-                    target.VisibleShape = CreateNewImage("raft.png");
+                    target.VisibleShape = CreateRaftImage();
                 }
                 targLocation.X += target.VisibleShape.Width;
                 target.Intertia.X = NextRandomDouble() / 4 + 0.1;
@@ -367,6 +367,33 @@ namespace AI_Evlo_Test
 
         List<Label> lsPopuLabels = new List<Label>();
         readonly List<ISensable> _sensableSnapshot = new List<ISensable>();
+
+        // Rafts bob slowly: advance the sprite-sheet frame only every N visual ticks.
+        private const int RaftAnimationTickInterval = 20;
+        private int _raftFrameCounter;
+        private int _raftFrameIndex;
+
+        /// <summary>
+        /// Advances the raft float animation ~20× slower than agents. UI-only; cheap (just swaps
+        /// the Image source every RaftAnimationTickInterval ticks).
+        /// </summary>
+        private void AnimateRafts()
+        {
+            if (RaftSheetCache.FrameCount <= 1)
+                return; // nothing to animate (single frame or sheet missing)
+
+            if (++_raftFrameCounter < RaftAnimationTickInterval)
+                return;
+
+            _raftFrameCounter = 0;
+            _raftFrameIndex++;
+
+            for (int i = 0; i < Targets.Count; i++)
+            {
+                if (Targets[i].VisibleShape is Image raftImage)
+                    raftImage.Source = RaftSheetCache.Frame(_raftFrameIndex + i); // stagger rafts by 1 frame
+            }
+        }
 
         private void UpdateLabbels()
         {

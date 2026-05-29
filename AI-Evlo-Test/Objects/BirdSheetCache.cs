@@ -34,7 +34,7 @@ namespace AI_Evlo_Test.Objects
         static BirdSheetCache()
         {
             ImageSource[] sliced = SpriteSheet.SliceWithAlpha(SheetResource, Columns, Rows);
-            Frames = sliced.Length > 0 ? sliced : new ImageSource[] { BirdSpriteCache.FlightFrames[0] };
+            Frames = sliced.Length > 0 ? sliced : new ImageSource[] { SpriteSheet.Placeholder };
         }
 
         public static ImageSource Frame(int index)

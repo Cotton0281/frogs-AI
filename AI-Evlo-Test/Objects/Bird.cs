@@ -32,8 +32,8 @@ namespace AI_Evlo_Test.Objects
         public const double SpeedMultiplier = 1.3;
         public static int BirdMaxHp => MaxHp * 5;
 
-        /// <summary>Birds can only hunt when HP is below this fraction of BirdMaxHp.</summary>
-        public const double HuntHpThreshold = 0.9;
+        /// <summary>Birds can only hunt when HP is below this fraction of BirdMaxHp (≤70%).</summary>
+        public const double HuntHpThreshold = 0.7;
 
         /// <summary>Returns true when the bird is hungry enough to hunt.</summary>
         public bool IsHungry => HP < BirdMaxHp * HuntHpThreshold;
@@ -44,8 +44,13 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Birds broadcast as landed or flying so frogs can react accordingly.</summary>
         public override ObjectCategory SenseCategory => IsLanded ? ObjectCategory.Bird_Landed : ObjectCategory.Bird;
 
-        /// <summary>Birds see everything — they hunt by sight.</summary>
-        public override ObjectCategory[] IgnoredCategories => null;
+        /// <summary>
+        /// Birds see rafts and frogs only — their vision is not obstructed by other birds
+        /// or by sharks (which swim below the water).
+        /// </summary>
+        private static readonly ObjectCategory[] BirdIgnored =
+            { ObjectCategory.Bird, ObjectCategory.Bird_Landed, ObjectCategory.Shark };
+        public override ObjectCategory[] IgnoredCategories => BirdIgnored;
 
         public override ImageSource GetSpriteFrame() => GetNextSpriteFrame();
 

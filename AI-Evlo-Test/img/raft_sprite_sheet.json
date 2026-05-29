@@ -1,0 +1,36 @@
+{
+  "image": "raft_sprite_sheet_transparent.png",
+  "grid": {
+    "columns": 4,
+    "rows": 1
+  },
+  "frameSize": {
+    "width": 627,
+    "height": 627
+  },
+  "totalFrames": 4,
+  "frameIndexing": "left-to-right",
+  "animations": {
+    "float": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "loop": true,
+      "description": "Raft floating cycle with subtle bobbing and slight rotation"
+    }
+  },
+  "frameDescriptions": {
+    "0": "neutral floating pose",
+    "1": "slight bob and lean left",
+    "2": "slight bob and lean right",
+    "3": "return to neutral / recovery"
+  },
+  "notes": {
+    "perspective": "top-down / overhead",
+    "usage": "Designed for frogs to climb on from multiple sides",
+    "background": "transparent"
+  }
+}

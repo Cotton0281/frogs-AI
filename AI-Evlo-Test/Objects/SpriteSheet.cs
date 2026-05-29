@@ -26,6 +26,16 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         private const byte DefaultBackgroundThreshold = 200;
 
+        /// <summary>A 1×1 fully transparent frame used as a last-resort fallback if a sheet fails to load.</summary>
+        public static readonly ImageSource Placeholder = CreatePlaceholder();
+
+        private static ImageSource CreatePlaceholder()
+        {
+            var bmp = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[] { 0, 0, 0, 0 }, 4);
+            bmp.Freeze();
+            return bmp;
+        }
+
         /// <summary>
         /// Slice a sheet whose background is an opaque near-white colour (no alpha channel).
         /// Background pixels are color-keyed to transparent.

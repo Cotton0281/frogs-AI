@@ -18,6 +18,13 @@ namespace AI_Evlo_Test
     // Agent creation, shape factories, offspring, disposal, and population regrowth.
     public partial class MainWindow
     {
+        // Canvas Z-ordering (low draws first / underneath):
+        //   sharks (underwater) < rafts < frogs (on rafts) < birds (flying)
+        private const int ZIndexShark = -10;
+        private const int ZIndexRaft = 0;
+        private const int ZIndexFrog = 1;
+        private const int ZIndexBird = 10;
+
         private Population CreatePopulation(int PopulationSize, string PopulationName, string nnType, PopulationBeing being)
         {
             if (PopulationSize < 1)
@@ -134,7 +141,6 @@ namespace AI_Evlo_Test
         {
             Bird newObj = new Bird(NeuroNetTemplate, ref randomInit);
             newObj.VisibleShape = CreateNewBirdImage();
-            Canvas.SetZIndex(newObj.VisibleShape, 1);
             newObj.VisibleShape.MouseDown += ObjectInterface_MouseDown;
             shapeToObjectMap[newObj.VisibleShape] = newObj;
             double initLocationX = (panlUniverseView.ActualWidth / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
@@ -148,7 +154,6 @@ namespace AI_Evlo_Test
         {
             Shark newObj = new Shark(NeuroNetTemplate, ref randomInit);
             newObj.VisibleShape = CreateNewSharkImage();
-            Canvas.SetZIndex(newObj.VisibleShape, -1); // under water — beneath rafts and birds
             newObj.VisibleShape.MouseDown += ObjectInterface_MouseDown;
             shapeToObjectMap[newObj.VisibleShape] = newObj;
             double initLocationX = (panlUniverseView.ActualWidth / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
@@ -279,12 +284,10 @@ namespace AI_Evlo_Test
             else if (smartObject is Bird)
             {
                 smartObject.VisibleShape = CreateNewBirdImage();
-                Canvas.SetZIndex(smartObject.VisibleShape, 1);
             }
             else if (smartObject is Shark)
             {
                 smartObject.VisibleShape = CreateNewSharkImage();
-                Canvas.SetZIndex(smartObject.VisibleShape, -1);
             }
             else
             {
@@ -359,6 +362,7 @@ namespace AI_Evlo_Test
             dynamicImage.RenderTransformOrigin = new Point(0.5, 0.5);
 
             panlUniverseView.Children.Add(dynamicImage);
+            Canvas.SetZIndex(dynamicImage, ZIndexBird);
 
             Canvas.SetTop(dynamicImage, 67);
             Canvas.SetLeft(dynamicImage, 66);
@@ -376,6 +380,28 @@ namespace AI_Evlo_Test
             dynamicImage.RenderTransformOrigin = new Point(0.5, 0.5);
 
             panlUniverseView.Children.Add(dynamicImage);
+            Canvas.SetZIndex(dynamicImage, ZIndexShark); // under water — beneath rafts and birds
+
+            Canvas.SetTop(dynamicImage, 67);
+            Canvas.SetLeft(dynamicImage, 66);
+
+            return dynamicImage;
+        }
+
+        /// <summary>
+        /// Creates the animated raft visual from the raft sprite sheet, drawn above sharks but
+        /// below the frogs/birds that ride on it.
+        /// </summary>
+        private FrameworkElement CreateRaftImage()
+        {
+            Image dynamicImage = new Image();
+            dynamicImage.Source = RaftSheetCache.Frame(0);
+            dynamicImage.Width = 200;
+            dynamicImage.Height = 200;
+            dynamicImage.RenderTransformOrigin = new Point(0.5, 0.5);
+
+            panlUniverseView.Children.Add(dynamicImage);
+            Canvas.SetZIndex(dynamicImage, ZIndexRaft);
 
             Canvas.SetTop(dynamicImage, 67);
             Canvas.SetLeft(dynamicImage, 66);
@@ -395,8 +421,9 @@ namespace AI_Evlo_Test
             dynamicImage.Height = 32;
             dynamicImage.RenderTransformOrigin = new Point(0.5, 0.5);
 
-            // Add Image to Window  
+            // Add Image to Window
             panlUniverseView.Children.Add(dynamicImage);
+            Canvas.SetZIndex(dynamicImage, ZIndexFrog);
 
             Canvas.SetTop(dynamicImage, 67);
             Canvas.SetLeft(dynamicImage, 66);

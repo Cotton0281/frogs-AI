@@ -32,7 +32,7 @@ namespace AI_Evlo_Test.Objects
         static FrogSheetCache()
         {
             ImageSource[] sliced = SpriteSheet.Slice(SheetResource, Columns, Rows);
-            Frames = sliced.Length > 0 ? sliced : new ImageSource[] { FrogSpriteCache.IdleFrames[0] };
+            Frames = sliced.Length > 0 ? sliced : new ImageSource[] { SpriteSheet.Placeholder };
         }
 
         /// <summary>Returns the frame for the given index, guarding against the fallback case.</summary>
