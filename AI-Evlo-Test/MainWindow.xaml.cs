@@ -600,7 +600,7 @@ namespace AI_Evlo_Test
             }
             _selectedPopulation.Being = GetSelectedPopulationBeing();
             _selectedPopulation.ObjectType = GetObjectTypeForBeing(_selectedPopulation.Being);
-            SavePopulations(_selectedPopulation);
+            SaveSession();
         }
 
         private PopulationBeing GetSelectedPopulationBeing()
@@ -659,6 +659,10 @@ namespace AI_Evlo_Test
                 StackPnlPopulations.Children.Remove(delCard.Root);
                 lsPopuCards.RemoveAt(populationIndex);
             }
+
+            // Persist the new set immediately so the deleted population does not reload next launch,
+            // even if the app later exits without firing the Closing handler.
+            SaveSession();
 
             lblPopulationInfo.Content = "Population:";
 
@@ -761,23 +765,11 @@ namespace AI_Evlo_Test
         private void windowEnvirnoment_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             Clock.Stop();
-            try
-            {
-                // Replace last session's snapshot with the current populations
-                string dir = SaveDirectory;
-                foreach (string stale in Directory.GetFiles(dir, "*.json"))
-                    File.Delete(stale);
-                foreach (Population po in lsPopulations)
-                    SavePopulations(po);
-                lblStatusBar.Content = $"Saved {lsPopulations.Count} population(s) to {dir}";
-            }
-            catch (Exception ex)
-            {
-                lblStatusBar.Content = "Could not save populations: " + ex.Message;
-            }
+            SaveSession();
+            lblStatusBar.Content = $"Saved {lsPopulations.Count} population(s).";
         }
 
-        /// <summary>Per-user folder holding the last session's populations.</summary>
+        /// <summary>Per-user folder holding the last session.</summary>
         private static string SaveDirectory
         {
             get
@@ -790,9 +782,29 @@ namespace AI_Evlo_Test
             }
         }
 
-        private void SavePopulations(Population objPopulation)
+        /// <summary>Single file that holds the whole session (the exact set of current populations).</summary>
+        private static string SessionFilePath => System.IO.Path.Combine(SaveDirectory, "session.json");
+
+        /// <summary>
+        /// Writes the current populations to a single session file. Because it is one file that
+        /// mirrors <see cref="lsPopulations"/> exactly, a deleted population can never linger and
+        /// reload, and the saved set is always "what was loaded when the app closed".
+        /// </summary>
+        private void SaveSession()
         {
-            WriteToJsonFile(System.IO.Path.Combine(SaveDirectory, objPopulation.ID + ".json"), (Population)objPopulation);
+            try
+            {
+                WriteToJsonFile(SessionFilePath, lsPopulations.ToList());
+
+                // Clean up any legacy per-population GUID files from the old save scheme.
+                foreach (string f in Directory.GetFiles(SaveDirectory, "*.json"))
+                    if (!string.Equals(System.IO.Path.GetFileName(f), "session.json", StringComparison.OrdinalIgnoreCase))
+                        File.Delete(f);
+            }
+            catch (Exception ex)
+            {
+                Log("Could not save session: " + ex.Message);
+            }
         }
 
         /// <summary>
@@ -820,27 +832,56 @@ namespace AI_Evlo_Test
             int count = 0;
             try
             {
-                foreach (string file in Directory.GetFiles(SaveDirectory, "*.json"))
+                List<Population> pops = null;
+                if (File.Exists(SessionFilePath))
+                    pops = ReadFromJsonFile<List<Population>>(SessionFilePath);
+
+                // One-time migration: if there is no session file yet, gather legacy per-GUID files.
+                if (pops == null || pops.Count == 0)
+                    pops = LoadLegacyPopulationFiles();
+
+                if (pops != null)
                 {
-                    try
+                    foreach (Population pop in pops)
                     {
-                        Population pop = ReadFromJsonFile<Population>(file);
                         if (pop == null || pop.SizeLimit < 1)
                             continue;
-                        RestorePopulation(pop);
-                        count++;
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"Skipped a saved population ({System.IO.Path.GetFileName(file)}): {ex.Message}");
+                        try
+                        {
+                            RestorePopulation(pop);
+                            count++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"Skipped a saved population: {ex.Message}");
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Log("Could not read saved populations: " + ex.Message);
+                Log("Could not read saved session: " + ex.Message);
             }
             return count;
+        }
+
+        /// <summary>Reads populations from the old per-population GUID files (pre-session-file format).</summary>
+        private List<Population> LoadLegacyPopulationFiles()
+        {
+            var list = new List<Population>();
+            foreach (string file in Directory.GetFiles(SaveDirectory, "*.json"))
+            {
+                if (string.Equals(System.IO.Path.GetFileName(file), "session.json", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try
+                {
+                    Population p = ReadFromJsonFile<Population>(file);
+                    if (p != null)
+                        list.Add(p);
+                }
+                catch { /* skip unreadable legacy file */ }
+            }
+            return list;
         }
 
         /// <summary>Rebuilds runtime state for a deserialized population and grows live members from its archived genes.</summary>
