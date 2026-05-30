@@ -17,6 +17,9 @@ namespace AI_Evlo_Test
         public PopulationList()
         {
             InitializeComponent();
+            if (WindowBoundsStore.TryGet("PopulationList", out double w, out double h))
+                Size = new Size((int)w, (int)h);
+            FormClosing += (s, e) => WindowBoundsStore.Save("PopulationList", Width, Height);
         }
         public void SetDataSource(Population population)
         {

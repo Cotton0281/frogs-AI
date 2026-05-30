@@ -135,6 +135,7 @@
     <Compile Include="Objects\FrogSheetCache.cs" />
     <Compile Include="Objects\RaftSheetCache.cs" />
     <Compile Include="Objects\SpriteSheet.cs" />
+    <Compile Include="Objects\WindowBoundsStore.cs" />
     <Compile Include="Objects\RayPerception.cs" />
     <Compile Include="Objects\RayVisualizer.cs" />
     <Compile Include="Objects\Target.cs" />

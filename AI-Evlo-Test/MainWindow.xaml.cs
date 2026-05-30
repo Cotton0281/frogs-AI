@@ -71,15 +71,18 @@ namespace AI_Evlo_Test
                 if (_selectedPopulation.ObjectType == null)
                     _selectedPopulation.ObjectType = GetObjectTypeForBeing(_selectedPopulation.Being);
 
-                foreach (ListBoxItem item in ddlPopulationNeuroNetType.Items)
-                {
-                    if (item.Content.ToString() == _selectedPopulation.NeuroNetTemplate.Id)
-                    {
-                        ddlPopulationNeuroNetType.SelectedItem = item;
-                        ddlPopulationNeuroNetType.UpdateLayout();
-                        txtPopulationSize.Text = _selectedPopulation.SizeLimit.ToString();
-                    }
-                }
+                // Always reflect the selected population's own size and brain in the editor controls,
+                // so clicking Update applies the right values to the right population.
+                txtPopulationSize.Text = _selectedPopulation.SizeLimit.ToString();
+
+                string templateId = _selectedPopulation.NeuroNetTemplate?.Id;
+                ListBoxItem brainItem = ddlPopulationNeuroNetType.Items
+                    .OfType<ListBoxItem>()
+                    .FirstOrDefault(it => it.Content.ToString() == templateId)
+                    ?? ddlPopulationNeuroNetType.Items.OfType<ListBoxItem>().FirstOrDefault();
+                ddlPopulationNeuroNetType.SelectedItem = brainItem;
+                ddlPopulationNeuroNetType.UpdateLayout();
+
                 SelectPopulationBeing(_selectedPopulation.Being);
                 rectanglePopulationColor.Fill = new SolidColorBrush()
                 { Color = _selectedPopulation.PopulationColor };
@@ -114,6 +117,13 @@ namespace AI_Evlo_Test
             ddlPopulationName.DisplayMemberPath = "Name";
             ddlPopulationName.SelectedValuePath = "ID";
             ddlPopulationName.UpdateLayout();
+
+            // Restore last window size
+            if (Objects.WindowBoundsStore.TryGet("MainWindow", out double w, out double h))
+            {
+                Width = w;
+                Height = h;
+            }
             //this.Hide();
         }
 
@@ -577,30 +587,71 @@ namespace AI_Evlo_Test
 
         private void BtnPopulationUpdate_Click(object sender, RoutedEventArgs e)
         {
-            if (_selectedPopulation == null)
+            // Update only the population that is currently selected.
+            Population pop = _selectedPopulation;
+            if (pop == null)
                 return;
 
-            int intSize = 0;
-            if (int.TryParse(txtPopulationSize.Text, out intSize))
+            if (int.TryParse(txtPopulationSize.Text, out int intSize) && intSize > 0)
+                pop.SizeLimit = intSize;
+
+            // Read the brain size from the actual selected item (not the unreliable .Text)
+            string nnType = (ddlPopulationNeuroNetType.SelectedItem as ListBoxItem)?.Content?.ToString();
+            NeuroNetStructure newTemplate;
+            switch (nnType)
             {
-                _selectedPopulation.SizeLimit = intSize;
+                case "Medium": newTemplate = NeuroNetStructure.Mid_3Lx10N(); break;
+                case "Large": newTemplate = NeuroNetStructure.Big_5Lx20N(); break;
+                default: newTemplate = NeuroNetStructure.Small_1Lx9N(); break;
+            }
+            bool brainChanged = pop.NeuroNetTemplate == null || pop.NeuroNetTemplate.Id != newTemplate.Id;
+            pop.NeuroNetTemplate = newTemplate;
+
+            PopulationBeing newBeing = GetSelectedPopulationBeing();
+            bool beingChanged = pop.Being != newBeing;
+            pop.Being = newBeing;
+            pop.ObjectType = GetObjectTypeForBeing(newBeing);
+
+            // A different brain topology or species can't reuse the old genes/agents, so rebuild
+            // this population's members from scratch with the new template.
+            if (brainChanged || beingChanged)
+            {
+                RebuildPopulationMembers(pop);
+                Log($"'{pop.Name}' rebuilt with {nnType ?? "Small"} brain ({GetPopulationBeingName(pop.Being)}). " +
+                    "Previous evolution for this population was reset.");
             }
 
-            switch (ddlPopulationNeuroNetType.Text)
-            {
-                case "Small":
-                    _selectedPopulation.NeuroNetTemplate = NeuroNetStructure.Small_1Lx9N();
-                    break;
-                case "Medium":
-                    _selectedPopulation.NeuroNetTemplate = NeuroNetStructure.Mid_3Lx10N();
-                    break;
-                case "Large":
-                    _selectedPopulation.NeuroNetTemplate = NeuroNetStructure.Big_5Lx20N();
-                    break;
-            }
-            _selectedPopulation.Being = GetSelectedPopulationBeing();
-            _selectedPopulation.ObjectType = GetObjectTypeForBeing(_selectedPopulation.Being);
             SaveSession();
+        }
+
+        /// <summary>
+        /// Disposes a population's current members and archived genes and grows a fresh set from
+        /// its (new) NeuroNetTemplate / Being. Used when the brain size or species changes.
+        /// </summary>
+        private void RebuildPopulationMembers(Population pop)
+        {
+            bool selectedWasInPop = SelectedObject != null && pop.Members.Contains(SelectedObject);
+
+            for (int i = pop.Members.Count - 1; i >= 0; i--)
+                DisposeObject(pop.Members[i]);
+
+            pop.Members.Clear();
+            pop.lsBestGenes.Clear(); // old genes are a different topology/species now
+
+            ReGrowPopulation(pop);   // Count == 0 + no genes ⇒ SizeLimit fresh random members
+
+            // The previously selected agent may have just been disposed — reselect cleanly.
+            if (selectedWasInPop)
+            {
+                SelectedObject = null;
+                if (pop.Members.Count > 0)
+                    SelectObject(pop.Members[0]);
+                else
+                {
+                    UpdateSelectedAgentVisual();
+                    UpdateSelectedAgentStats();
+                }
+            }
         }
 
         private PopulationBeing GetSelectedPopulationBeing()
@@ -765,6 +816,7 @@ namespace AI_Evlo_Test
         private void windowEnvirnoment_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             Clock.Stop();
+            Objects.WindowBoundsStore.Save("MainWindow", ActualWidth, ActualHeight);
             SaveSession();
             lblStatusBar.Content = $"Saved {lsPopulations.Count} population(s).";
         }

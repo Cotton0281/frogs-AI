@@ -42,6 +42,9 @@ namespace AI_Evlo_Test
         {
             InitializeComponent();
             evChamb.NewMessage += EvChamb_NewMessage;
+            if (Objects.WindowBoundsStore.TryGet("VisualizeNetwork", out double w, out double h))
+                Size = new System.Drawing.Size((int)w, (int)h);
+            FormClosing += (s, e) => Objects.WindowBoundsStore.Save("VisualizeNetwork", Width, Height);
         }
 
         private void EvChamb_NewMessage(string Message)
