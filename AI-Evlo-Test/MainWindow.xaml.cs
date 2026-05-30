@@ -134,7 +134,7 @@ namespace AI_Evlo_Test
 
             if (!isHeadlessMode)
             {
-                AnimateRafts();
+                UpdateRaftAnimation();
 
                 // Draw line to selected agent
                 if (eEnvironmentType == EEnvironmentType.OneTarget)
@@ -258,46 +258,116 @@ namespace AI_Evlo_Test
             // Update ComboBox
             UpdatePopulationsDDL(newPopulation);
 
-            // create info label
-            Label newLabel = new Label();
-            newLabel.Width = lblPopulationInfo.Width;
-            newLabel.Height = lblPopulationInfo.Height;
-            newLabel.HorizontalAlignment = HorizontalAlignment.Left;
-            newLabel.VerticalAlignment = VerticalAlignment.Top;
-            newLabel.Name = "L" + newPopulation.ID.Replace("-", ""); // "lbl" + newPopulation.Name.Replace(" ", "_");
-            StackPnlPopulations.Children.Add(newLabel);
-
-            lsPopuLabels.Add(newLabel);
-            double topMargin = lblPopulationInfo.Margin.Top + (lsPopuLabels.Count * 1.3 * newLabel.Height);
-            newLabel.Margin = new Thickness(1, 2, 0, 0);
-            newLabel.Background = new SolidColorBrush(newPopulation.PopulationColor);
-            newLabel.BorderBrush = Brushes.LightSlateGray;
-            newLabel.Content = "Collecting data...";
-            newLabel.BorderThickness = new Thickness(1);
-            newLabel.BorderBrush = Brushes.Gray;
-
-            newLabel.MouseLeftButtonDown += NewLabel_MouseLeftButtonDown;
-            newLabel.MouseRightButtonDown += NewLabel_MouseRightButtonDown;
-            newLabel.MouseEnter += PopulationLabel_mouseOver;
-            newLabel.MouseLeave += PopulaionLabel_mouseLeaave;
+            // create the population card
+            PopulationCard card = BuildPopulationCard(newPopulation);
+            StackPnlPopulations.Children.Add(card.Root);
+            lsPopuCards.Add(card);
         }
 
-        private void PopulaionLabel_mouseLeaave(object sender, MouseEventArgs e)
+        /// <summary>Holds the visual elements of one population card so they can be updated cheaply.</summary>
+        private class PopulationCard
         {
-            (e.Source as Label).BorderThickness = new Thickness(1);
-            (e.Source as Label).BorderBrush = Brushes.Gray;
+            public Border Root;
+            public System.Windows.Shapes.Rectangle ColorStripe;
+            public Image Icon;
+            public TextBlock Title;
+            public TextBlock Stats;
         }
 
-        private void PopulationLabel_mouseOver(object sender, MouseEventArgs e)
+        private ImageSource SpeciesIconForBeing(PopulationBeing being)
         {
-            (e.Source as Label).BorderThickness = new Thickness(3);
-            (e.Source as Label).BorderBrush = Brushes.DarkRed;
+            switch (being)
+            {
+                case PopulationBeing.Bird: return BirdSheetCache.Frame(0);
+                case PopulationBeing.Shark: return SharkSpriteCache.Frame(0);
+                default: return FrogSheetCache.Frame(0);
+            }
         }
 
-        private void NewLabel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private PopulationCard BuildPopulationCard(Population pop)
         {
-            Label clickedLabel = (Label)sender;
-            Population selPopul = lsPopulations.FirstOrDefault(p => "L" + p.ID.Replace("-", "") == clickedLabel.Name);
+            var stripe = new System.Windows.Shapes.Rectangle
+            {
+                Width = 6,
+                Fill = new SolidColorBrush(pop.PopulationColor),
+                RadiusX = 2,
+                RadiusY = 2
+            };
+
+            var icon = new Image
+            {
+                Width = 38,
+                Height = 38,
+                Source = SpeciesIconForBeing(pop.Being),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            RenderOptions.SetBitmapScalingMode(icon, BitmapScalingMode.HighQuality);
+
+            var iconHolder = new Border
+            {
+                Width = 42,
+                Height = 42,
+                CornerRadius = new CornerRadius(5),
+                Background = new SolidColorBrush(Color.FromArgb(0x22, 0x10, 0x20, 0x40)),
+                Margin = new Thickness(4, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = icon
+            };
+            Grid.SetColumn(iconHolder, 1);
+
+            var title = new TextBlock { FontWeight = FontWeights.Bold, FontSize = 11.5, Text = pop.Name };
+            var stats = new TextBlock { FontSize = 9.5, Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0x52, 0x60)), Text = "collecting data…", TextWrapping = TextWrapping.NoWrap };
+            var textPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            textPanel.Children.Add(title);
+            textPanel.Children.Add(stats);
+            Grid.SetColumn(textPanel, 2);
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.Children.Add(stripe);
+            grid.Children.Add(iconHolder);
+            grid.Children.Add(textPanel);
+
+            var root = new Border
+            {
+                Width = 272,
+                CornerRadius = new CornerRadius(5),
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(1),
+                Background = Brushes.White,
+                Margin = new Thickness(1, 2, 0, 0),
+                Padding = new Thickness(0, 3, 3, 3),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Tag = pop,
+                Child = grid
+            };
+
+            root.MouseLeftButtonDown += PopulationCard_MouseLeftButtonDown;
+            root.MouseRightButtonDown += PopulationCard_MouseRightButtonDown;
+            root.MouseEnter += PopulationCard_MouseEnter;
+            root.MouseLeave += PopulationCard_MouseLeave;
+
+            return new PopulationCard { Root = root, ColorStripe = stripe, Icon = icon, Title = title, Stats = stats };
+        }
+
+        private static Population PopulationFromSender(object sender)
+            => (sender as FrameworkElement)?.Tag as Population;
+
+        private void PopulationCard_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (sender is Border b) { b.BorderThickness = new Thickness(1); b.BorderBrush = Brushes.Gray; }
+        }
+
+        private void PopulationCard_MouseEnter(object sender, MouseEventArgs e)
+        {
+            if (sender is Border b) { b.BorderThickness = new Thickness(2); b.BorderBrush = Brushes.DarkRed; }
+        }
+
+        private void PopulationCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            Population selPopul = PopulationFromSender(sender);
             if (selPopul != null)
             {
                 SelectedPopulation = selPopul;
@@ -305,10 +375,9 @@ namespace AI_Evlo_Test
             }
         }
 
-        private void NewLabel_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        private void PopulationCard_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            Label clickedLabel = (Label)sender;
-            Population selPopul = lsPopulations.FirstOrDefault(p => "L" + p.ID.Replace("-", "") == clickedLabel.Name);
+            Population selPopul = PopulationFromSender(sender);
             if (selPopul == null)
                 return;
 
@@ -327,7 +396,7 @@ namespace AI_Evlo_Test
             itemDelete.Click += (s, args) => DeletePopulation(selPopul);
             menu.Items.Add(itemDelete);
 
-            menu.PlacementTarget = clickedLabel;
+            menu.PlacementTarget = sender as UIElement;
             menu.IsOpen = true;
             e.Handled = true;
         }
@@ -395,6 +464,10 @@ namespace AI_Evlo_Test
                 objEllipse.StrokeThickness = 3;
                 objEllipse.Stroke = Brushes.White;
             }
+
+            // Refresh the Selected Agent panel (icon + brain + stats)
+            UpdateSelectedAgentVisual();
+            UpdateSelectedAgentStats();
         }
 
         private void ObjectInterface_MouseDown(object sender, MouseButtonEventArgs e)
@@ -580,11 +653,11 @@ namespace AI_Evlo_Test
             _selectedPopulation.Members.Clear();
             _selectedPopulation = null;
 
-            if (populationIndex >= 0 && populationIndex < lsPopuLabels.Count)
+            if (populationIndex >= 0 && populationIndex < lsPopuCards.Count)
             {
-                Label delLabel = lsPopuLabels[populationIndex];
-                StackPnlPopulations.Children.Remove(delLabel);
-                lsPopuLabels.Remove(delLabel);
+                PopulationCard delCard = lsPopuCards[populationIndex];
+                StackPnlPopulations.Children.Remove(delCard.Root);
+                lsPopuCards.RemoveAt(populationIndex);
             }
 
             lblPopulationInfo.Content = "Population:";
