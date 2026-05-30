@@ -97,6 +97,9 @@ namespace AI_Evlo_Test.Objects
     /// <typeparam name="T"></typeparam>
     public abstract class abstrPopulation<T> : IabstrPopulation<T>
     {
+        // [JsonProperty] makes Newtonsoft populate the private setter so the ID survives a
+        // save→load round-trip; otherwise each load minted a new GUID, orphaning the saved file.
+        [Newtonsoft.Json.JsonProperty]
         public string ID { get; private set; } = Guid.NewGuid().ToString();
         virtual public List<T> Members { get; set; }
         public List<GenomeRecord> lsBestGenes { get; set; } = new List<GenomeRecord>();
