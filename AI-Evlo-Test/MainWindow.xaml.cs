@@ -308,7 +308,7 @@ namespace AI_Evlo_Test
                 Width = 42,
                 Height = 42,
                 CornerRadius = new CornerRadius(5),
-                Background = new SolidColorBrush(Color.FromArgb(0x22, 0x10, 0x20, 0x40)),
+                Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x24, 0x3A)), // dark navy — same tone as canvas, makes light birds visible
                 Margin = new Thickness(4, 0, 6, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = icon
