@@ -33,3 +33,8 @@ Completed tier-1 math base upgrade. Added net10.0 multi-targeting to Accord.Math
 
 Completed tier-2 analytics libraries upgrade. Added net10.0 targeting to Accord.Genetic and Accord.Statistics, removed modern-target DataAnnotations reference conflict path, and replaced BinaryFormatter-based save/load wrappers with Accord serializer APIs in affected statistics models/performance components. Resolved additional net10 compiler/analyzer blockers (conditional member hiding signature and redundant IDisposable interface declarations). Validated tier-2 projects build on net10.0 and confirmed Accord.Neuro still builds on current compatibility target.
 
+
+## [2026-06-01 15:48] 06-upgrade-tier3-neuro-lib
+
+Completed tier-3 neuro library upgrade. Added net10.0 to Accord.Neuro multi-targeting while preserving existing netstandard compatibility targets. Built Accord.Neuro successfully on net10.0 and revalidated netstandard2.0 build path with upgraded lower-tier dependencies, with no additional tier-local package or API blockers detected.
+

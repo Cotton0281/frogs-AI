@@ -3,7 +3,7 @@
   "operationId": "38ad643a-9983-401b-9855-81a33d5973a1",
   "description": "Upgrade .NET projects to newer .NET versions",
   "startTime": "2026-06-01T17:52:54.9553612Z",
-  "lastUpdateTime": "2026-06-01T19:45:35.8789583Z",
+  "lastUpdateTime": "2026-06-01T19:48:00.669958Z",
   "properties": {
     "UpgradeTargetFramework": "net10.0",
     "taskStates": {
@@ -14,7 +14,8 @@
       "03.02-tier0-api-remediation": "Completed",
       "03.03-tier0-dependent-tier-validation": "Completed",
       "04-upgrade-tier1-math-base": "Completed",
-      "05-upgrade-tier2-analytics-libs": "Completed"
+      "05-upgrade-tier2-analytics-libs": "Completed",
+      "06-upgrade-tier3-neuro-lib": "Completed"
     }
   },
   "folderPath": ""
