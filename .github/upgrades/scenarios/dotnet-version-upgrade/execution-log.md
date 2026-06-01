@@ -8,3 +8,8 @@ Validated .NET 10 prerequisite readiness for the full-solution upgrade. Confirme
 
 Completed SDK-style conversion for the classic application project (`AI-Evlo-WPF.csproj`) using the conversion tool, preserving the original target framework (`net481`). Migrated package references into the project file and removed `packages.config`. Applied minimal post-conversion fixes required to keep the converted project building cleanly (restored System.Web reference and removed local project warnings). Validated the converted project builds successfully with MSBuild. Noted an existing solution-level NU1201 mismatch between unit-test and app frameworks as a known baseline issue to resolve in later app/test upgrade tasks.
 
+
+## [2026-06-01 14:58] 03.01-tier0-project-and-package-stabilization
+
+Completed tier-0 project/package stabilization for Accord.Core. Kept multi-targeting in place, removed legacy DataAnnotations reference-path conflicts, and retained patched netstandard1.4 package versions for vulnerable transitive dependencies. Verified netstandard2.0 target builds successfully and net10.0 now restores cleanly, with remaining failures isolated to expected source/API migration errors (BinaryFormatter/SurrogateSelector obsolescence, naming/ambiguity issues) for the next subtask.
+

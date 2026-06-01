@@ -46,6 +46,8 @@
 ## User Preferences
 ### Execution Style
 - **Upgrade Scope**: Upgrade all projects in the solution
+- **Pace**: Fast continuous execution; avoid unnecessary pauses between tasks
 
 ## Key Decisions Log
 - Upgrade scope set to full-solution upgrade (all projects), not single-project upgrade.
+- User requested continuous execution with minimal waiting; continue tasks end-to-end unless blocked.
