@@ -2,11 +2,11 @@
 
 ## Overview
 
-This workflow upgrades the full AI-Evlo-WPF solution to .NET 10 using a dependency-first sequence. The migration starts with foundational libraries, then progresses through higher-level libraries and finally desktop app/test projects. Validation gates are enforced between milestones to keep the upgrade stable.
+**Progress**: 1/8 tasks complete <progress value="12" max="100"></progress> 12%
 **Progress**: 0/8 tasks complete <progress value="0" max="100"></progress> 0%
 **Progress**: 0/8 tasks complete <progress value="0" max="100"></progress> 0%
 
-## Tasks
+- ✅ 01-prerequisites-toolchain: Validate SDK/toolchain and upgrade prerequisites ([Content](tasks/01-prerequisites-toolchain/task.md), [Progress](tasks/01-prerequisites-toolchain/progress-details.md))
 - 🔄 01-prerequisites-toolchain: Validate SDK/toolchain and upgrade prerequisites ([Content](tasks/01-prerequisites-toolchain/task.md))
 - 🔲 01-prerequisites-toolchain: Validate SDK/toolchain and upgrade prerequisites
 - 🔲 02-convert-classic-projects-sdk-style: Convert non-SDK project files before TFM changes

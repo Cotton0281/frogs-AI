@@ -39,6 +39,10 @@
 - Preserve Windows desktop compatibility during migration using Windows compatibility support where required
 - Perform full solution validation (build + tests) after migration tasks before closing the scenario
 
+## Build Tool Decisions
+- **AI-Evlo-Test/AI-Evlo-WPF.csproj**: msbuild.exe (desktop .NET Framework app baseline build validated)
+- **AI-Evlo-WPF.sln**: msbuild.exe (mixed .NET Framework and desktop project stack)
+
 ## User Preferences
 ### Execution Style
 - **Upgrade Scope**: Upgrade all projects in the solution
