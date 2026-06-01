@@ -20,6 +20,11 @@ namespace AI_Evlo_Test.Objects
         public delegate void Message_Handler(string Message);
         public event Message_Handler NewMessage;
 
+        private void NotifyMessage(string message)
+        {
+            NewMessage?.Invoke(message);
+        }
+
         public EvolutionChember()
         {
             lock (RndLock)

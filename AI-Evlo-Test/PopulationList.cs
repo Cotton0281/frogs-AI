@@ -54,7 +54,6 @@ namespace AI_Evlo_Test
         {
             var x = e;
             var y = sender;
-            var r = 5;
         }
     }
 }

@@ -233,7 +233,6 @@ namespace AI_Evlo_Test
         private System.Windows.Forms.DataGridView dataGridView2;
         private System.Windows.Forms.BindingSource geneEvaluationBindingSource;
         private System.Windows.Forms.BindingSource smartObjectBindingSource;
-        private System.Windows.Forms.DataGridViewTextBoxColumn agentIdDataGridViewTextBoxColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn iDDataGridViewTextBoxColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn2;
         private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn1;
