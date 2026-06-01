@@ -141,20 +141,7 @@ namespace AI_Evlo_Test.Objects
                 ctx.HungrySharks.Add(this);
         }
 
-        /// <summary>
-        /// Sharks swim faster than the base agent. Overrides base Act to apply the speed multiplier.
-        /// </summary>
-        public override double[] Act(double[] arrayInputs)
-        {
-            double[] outputs = base.Act(arrayInputs);
-            if (outputs.Length > 0)
-            {
-                double boost = SpeedMultiplier - 1.0;
-                this.PushForward(LastSpeed * boost);
-                LastSpeed *= SpeedMultiplier;
-            }
-            return outputs;
-        }
+
 
         private void InitializeSpriteRhythm()
         {

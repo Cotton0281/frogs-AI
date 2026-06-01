@@ -658,7 +658,7 @@ namespace AI_Evlo_Test
                 if (nearestFrog == null)
                     continue;
 
-                shark.HP += Shark.HuntHpGain;
+                shark.HP += nearestFrog.HP;
                 shark.FrogsEaten++;
                 shark.TriggerBite();
                 frogsToDispose.Add(nearestFrog);

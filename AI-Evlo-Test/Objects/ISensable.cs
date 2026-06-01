@@ -9,20 +9,21 @@ namespace AI_Evlo_Test.Objects
     /// </summary>
     public enum ObjectCategory
     {
-        Food = 0,
-        Raft = 1,
-        Raft_Sunk = 2,
-        Frog = 3,
-        Bird = 4,
+        Food = -6,
+        Raft = -5,
+        Raft_Sunk = -4,
+        Frog = -1,
+        Bird = 1,
         Bird_Landed = 5,
         Shark = 6
     }
 
     internal static class ObjectCategoryExtensions
     {
+        private static readonly int CategoryCount = Enum.GetValues(typeof(ObjectCategory)).Length;
         public static double ToSignalValue(this ObjectCategory category)
         {
-            return ((int)category + 1.0) / Enum.GetValues(typeof(ObjectCategory)).Length;
+            return ((int)category + 1.0) / CategoryCount;
         }
     }
 
