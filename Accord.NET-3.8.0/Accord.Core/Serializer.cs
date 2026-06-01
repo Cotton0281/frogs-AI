@@ -64,6 +64,11 @@ namespace Accord.IO
     /// 
     public static class Serializer
     {
+#if NET10_0_OR_GREATER
+#pragma warning disable SYSLIB0011
+#pragma warning disable SYSLIB0050
+#endif
+
         const SerializerCompression DEFAULT_COMPRESSION = SerializerCompression.None;
 
         private static readonly Object lockObj = new Object();
@@ -105,8 +110,10 @@ namespace Accord.IO
 #endif
         static void Save<T>(this T obj, BinaryFormatter formatter, Stream stream, SerializerCompression compression = DEFAULT_COMPRESSION)
         {
+#if !NET10_0_OR_GREATER
             if (formatter.SurrogateSelector == null)
                 formatter.SurrogateSelector = GetSurrogate(typeof(T));
+#endif
 
             if (compression == SerializerCompression.GZip)
             {
@@ -359,8 +366,10 @@ namespace Accord.IO
 
                     AppDomain.CurrentDomain.AssemblyResolve += resolve;
 
+#if !NET10_0_OR_GREATER
                     if (formatter.SurrogateSelector == null)
                         formatter.SurrogateSelector = GetSurrogate(typeof(T));
+#endif
 
                     object obj;
                     if (compression == SerializerCompression.GZip)
@@ -431,7 +440,7 @@ namespace Accord.IO
 
         private static SurrogateSelector GetSurrogate(Type type)
         {
-#if NETSTANDARD1_4
+#if NETSTANDARD1_4 || NET10_0_OR_GREATER
             throw new NotSupportedException("Surrogates are not supported in .NET Standard 1.4.");
 #else
             // Try to get the binder by checking if there type is
@@ -481,5 +490,10 @@ namespace Accord.IO
         {
             return value = (T)info.GetValue(name, typeof(T));
         }
+
+#if NET10_0_OR_GREATER
+#pragma warning restore SYSLIB0050
+#pragma warning restore SYSLIB0011
+#endif
     }
 }

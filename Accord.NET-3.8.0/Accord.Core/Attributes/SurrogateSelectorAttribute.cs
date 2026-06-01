@@ -20,7 +20,7 @@
 //    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
-#if !NETSTANDARD1_4
+#if !NETSTANDARD1_4 && !NET10_0_OR_GREATER
 namespace Accord
 {
     using System;

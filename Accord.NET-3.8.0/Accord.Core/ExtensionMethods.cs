@@ -97,7 +97,7 @@ namespace Accord
         ///   </code>
         /// </example>
         /// 
-        public static void Add(this DataColumnCollection collection, OrderedDictionary<string, Type> columns)
+        public static void Add(this DataColumnCollection collection, Accord.Collections.OrderedDictionary<string, Type> columns)
         {
             foreach (var pair in columns)
                 collection.Add(pair.Key, pair.Value);
@@ -605,6 +605,7 @@ namespace Accord
 
 #endif
 
+        [Obsolete]
         internal static WebClient NewWebClient()
         {
             var webClient = new WebClient();
@@ -622,6 +623,7 @@ namespace Accord
         /// <param name="maxAttempts">The maximum number of attempts.</param>
         /// <param name="overwrite">Do not overwrite <paramref name="fileName"/> if it already exists.</param>
         /// 
+        [Obsolete]
         internal static void DownloadFileWithRetry(this WebClient client, string url, string fileName, int maxAttempts = 3, bool overwrite = false)
         {
             if (!overwrite && File.Exists(fileName))

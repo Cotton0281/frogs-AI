@@ -13,3 +13,8 @@ Completed SDK-style conversion for the classic application project (`AI-Evlo-WPF
 
 Completed tier-0 project/package stabilization for Accord.Core. Kept multi-targeting in place, removed legacy DataAnnotations reference-path conflicts, and retained patched netstandard1.4 package versions for vulnerable transitive dependencies. Verified netstandard2.0 target builds successfully and net10.0 now restores cleanly, with remaining failures isolated to expected source/API migration errors (BinaryFormatter/SurrogateSelector obsolescence, naming/ambiguity issues) for the next subtask.
 
+
+## [2026-06-01 15:05] 03.02-tier0-api-remediation
+
+Completed tier-0 API remediation for Accord.Core net10 target. Fixed CS8981 by renaming internal cast helper structs, resolved OrderedDictionary ambiguity with explicit namespace qualification, and addressed formatter/WebClient obsolescence blockers via targeted compatibility handling (net10 surrogate path gating and explicit legacy constructor/method annotations). Verified both net10.0 and netstandard2.0 builds succeed for Accord.Core.
+

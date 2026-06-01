@@ -16,3 +16,16 @@ Resolve net10.0 compile-time API/source incompatibilities in Accord.Core surface
 4. Rebuild net10.0 and netstandard2.0 targets and remove warnings in touched files/projects.
 
 **Done when**: `Accord.Core` compiles warning-free for the updated targets in scope.
+
+## Research Notes
+- Current net10.0 blockers are isolated to source/API issues in `Cast.cs`, `ExtensionMethods.cs`, `Serializer.cs`, and `Attributes/SurrogateSelectorAttribute.cs`.
+- `cast` helper structs are internal to `Cast.cs`; renaming should be low-risk with local aliasing to preserve call sites.
+- `OrderedDictionary<,>` ambiguity is in `ExtensionMethods.cs`; explicit namespace qualification is sufficient.
+- `BinaryFormatter` and `SurrogateSelector` usage is present in serializer paths; target-specific suppression in legacy-compatible methods is the least invasive path for this migration stage.
+
+## Execution Notes
+- Renamed internal `cast` helper structs to `CastValue` to resolve `CS8981` without changing conversion behavior.
+- Qualified `OrderedDictionary` usage in `ExtensionMethods.cs` with `Accord.Collections` to resolve `CS0104`.
+- Disabled surrogate-selector path for `NET10_0_OR_GREATER` and excluded `SurrogateSelectorAttribute` from net10 compilation.
+- Marked legacy formatter-based exception serialization constructors as `[Obsolete]` to satisfy `SYSLIB0051` guidance.
+- Marked WebClient helper APIs as `[Obsolete]` to satisfy `SYSLIB0014` while preserving compatibility behavior in existing targets.

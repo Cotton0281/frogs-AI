@@ -75,6 +75,7 @@ namespace Accord
         /// The class name is null or <see cref="P:System.Exception.HResult"/> is zero (0).
         /// </exception>
         /// 
+        [Obsolete]
         protected NonSymmetricMatrixException(SerializationInfo info, StreamingContext context) :
             base(info, context) { }
 
