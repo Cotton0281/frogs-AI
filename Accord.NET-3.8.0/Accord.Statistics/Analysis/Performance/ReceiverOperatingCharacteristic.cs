@@ -710,8 +710,7 @@ namespace Accord.Statistics.Analysis
         /// 
         public void Save(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            b.Serialize(stream, this);
+            Accord.IO.Serializer.Save(this, stream);
         }
 
         /// <summary>
@@ -724,8 +723,7 @@ namespace Accord.Statistics.Analysis
         /// 
         public static ReceiverOperatingCharacteristic Load(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            return (ReceiverOperatingCharacteristic)b.Deserialize(stream);
+            return Accord.IO.Serializer.Load<ReceiverOperatingCharacteristic>(stream);
         }
 
         /// <summary>

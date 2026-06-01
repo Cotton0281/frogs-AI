@@ -240,8 +240,7 @@ namespace Accord.Statistics.Models.Fields
         [Obsolete("Please use Accord.Serializer instead.")]
         public void Save(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            b.Serialize(stream, this);
+            Accord.IO.Serializer.Save(this, stream);
         }
 
         /// <summary>
@@ -267,8 +266,7 @@ namespace Accord.Statistics.Models.Fields
         [Obsolete("Please use Accord.Serializer instead.")]
         public static ConditionalRandomField<T> Load(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            return (ConditionalRandomField<T>)b.Deserialize(stream);
+            return Accord.IO.Serializer.Load<ConditionalRandomField<T>>(stream);
         }
 
         /// <summary>

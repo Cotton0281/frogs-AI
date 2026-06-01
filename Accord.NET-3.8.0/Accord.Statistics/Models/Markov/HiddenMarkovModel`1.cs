@@ -1055,8 +1055,7 @@ namespace Accord.Statistics.Models.Markov
         /// 
         public void Save(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            b.Serialize(stream, this);
+            Accord.IO.Serializer.Save(this, stream);
         }
 
         /// <summary>
@@ -1083,8 +1082,7 @@ namespace Accord.Statistics.Models.Markov
         /// 
         public static HiddenMarkovModel<TDistribution> Load(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            return (HiddenMarkovModel<TDistribution>)b.Deserialize(stream);
+            return Accord.IO.Serializer.Load<HiddenMarkovModel<TDistribution>>(stream);
         }
 
         /// <summary>

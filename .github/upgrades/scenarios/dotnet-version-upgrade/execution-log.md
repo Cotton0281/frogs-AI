@@ -28,3 +28,8 @@ Completed tier-0 dependent validation. Built all dependent Accord libraries (Mat
 
 Completed tier-1 math base upgrade. Added net10.0 multi-targeting to Accord.Math.Core and Accord.Math, adjusted threading package conditions to avoid framework-included package conflicts on modern target, and remediated source/API compatibility issues (legacy serialization/CAS paths, Range ambiguity with System.Range, and lowercase helper type names flagged by new compiler rules). Validated both tier-1 projects build on net10.0 and confirmed direct dependents (Genetic, Statistics, Neuro) still build on current compatibility targets.
 
+
+## [2026-06-01 15:45] 05-upgrade-tier2-analytics-libs
+
+Completed tier-2 analytics libraries upgrade. Added net10.0 targeting to Accord.Genetic and Accord.Statistics, removed modern-target DataAnnotations reference conflict path, and replaced BinaryFormatter-based save/load wrappers with Accord serializer APIs in affected statistics models/performance components. Resolved additional net10 compiler/analyzer blockers (conditional member hiding signature and redundant IDisposable interface declarations). Validated tier-2 projects build on net10.0 and confirmed Accord.Neuro still builds on current compatibility target.
+

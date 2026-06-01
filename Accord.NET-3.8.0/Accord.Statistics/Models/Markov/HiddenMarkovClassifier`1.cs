@@ -304,8 +304,7 @@ namespace Accord.Statistics.Models.Markov
         [Obsolete("Please use Accord.Serializer.Save instead.")]
         public void Save(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            b.Serialize(stream, this);
+            Accord.IO.Serializer.Save(this, stream);
         }
 
         /// <summary>
@@ -334,8 +333,7 @@ namespace Accord.Statistics.Models.Markov
         [Obsolete("Please use Accord.Serializer.Load instead.")]
         public static HiddenMarkovClassifier<TDistribution> Load(Stream stream)
         {
-            BinaryFormatter b = new BinaryFormatter();
-            return (HiddenMarkovClassifier<TDistribution>)b.Deserialize(stream);
+            return Accord.IO.Serializer.Load<HiddenMarkovClassifier<TDistribution>>(stream);
         }
 
         /// <summary>
