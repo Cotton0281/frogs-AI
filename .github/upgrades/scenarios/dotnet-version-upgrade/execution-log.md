@@ -23,3 +23,8 @@ Completed tier-0 API remediation for Accord.Core net10 target. Fixed CS8981 by r
 
 Completed tier-0 dependent validation. Built all dependent Accord libraries (Math.Core, Math, Genetic, Statistics, Neuro) on current netstandard2.0 targets with required solution properties and confirmed no regressions from Accord.Core tier-0 migration changes. Tier-0 foundation is now validated and ready to progress to next tier tasks.
 
+
+## [2026-06-01 15:37] 04-upgrade-tier1-math-base
+
+Completed tier-1 math base upgrade. Added net10.0 multi-targeting to Accord.Math.Core and Accord.Math, adjusted threading package conditions to avoid framework-included package conflicts on modern target, and remediated source/API compatibility issues (legacy serialization/CAS paths, Range ambiguity with System.Range, and lowercase helper type names flagged by new compiler rules). Validated both tier-1 projects build on net10.0 and confirmed direct dependents (Genetic, Statistics, Neuro) still build on current compatibility targets.
+

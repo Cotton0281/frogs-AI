@@ -156,21 +156,21 @@ namespace Accord.Math.Environments
 
         // octave language commands
         /// <summary>Creates an identity matrix.</summary>
-        protected static mat eye(int size) { return Matrix.Identity(size); }
+        protected static MatrixValue eye(int size) { return Matrix.Identity(size); }
         /// <summary>Inverts a matrix.</summary>
-        protected static mat inv(double[,] matrix) { return Matrix.Inverse(matrix); }
+        protected static MatrixValue inv(double[,] matrix) { return Matrix.Inverse(matrix); }
         /// <summary>Inverts a matrix.</summary>
-        protected static mat pinv(double[,] matrix) { return Matrix.PseudoInverse(matrix); }
+        protected static MatrixValue pinv(double[,] matrix) { return Matrix.PseudoInverse(matrix); }
         /// <summary>Creates a unit matrix.</summary>
-        protected static mat ones(int size) { return Matrix.Ones(size, size); }
+        protected static MatrixValue ones(int size) { return Matrix.Ones(size, size); }
         /// <summary>Creates a unit matrix.</summary>
-        protected static mat ones(int n, int m) { return Matrix.Create(n, m, 1.0); }
+        protected static MatrixValue ones(int n, int m) { return Matrix.Create(n, m, 1.0); }
         /// <summary>Creates a unit matrix.</summary>
-        protected static mat zeros(int size) { return Matrix.Square(size, 0.0); }
+        protected static MatrixValue zeros(int size) { return Matrix.Square(size, 0.0); }
         /// <summary>Creates a unit matrix.</summary>
-        protected static mat zeros(int n, int m) { return Matrix.Create(n, m, 0.0); }
+        protected static MatrixValue zeros(int n, int m) { return Matrix.Create(n, m, 0.0); }
         /// <summary>Random vector.</summary>
-        protected static mat rand(int n, int m) { return Matrix.Random(n, m); }
+        protected static MatrixValue rand(int n, int m) { return Matrix.Random(n, m); }
         /// <summary>Size of a matrix.</summary>
         protected static double[] size(double[,] m) { return new double[] { m.GetLength(0), m.GetLength(1) }; }
         /// <summary>Rank of a matrix.</summary>
@@ -232,26 +232,26 @@ namespace Accord.Math.Environments
         protected static double[] log(double[] d) { return Matrix.Apply(d, x => System.Math.Log(x)); }
 
         /// <summary>Sin.</summary>
-        protected static mat sin(double[,] d) { return Matrix.Apply(d, x => System.Math.Sin(x)); }
+        protected static MatrixValue sin(double[,] d) { return Matrix.Apply(d, x => System.Math.Sin(x)); }
         /// <summary>Cos.</summary>
-        protected static mat cos(double[,] d) { return Matrix.Apply(d, x => System.Math.Cos(x)); }
+        protected static MatrixValue cos(double[,] d) { return Matrix.Apply(d, x => System.Math.Cos(x)); }
         /// <summary>Exponential value.</summary>
-        protected static mat exp(double[,] d) { return Matrix.Apply(d, x => System.Math.Exp(x)); }
+        protected static MatrixValue exp(double[,] d) { return Matrix.Apply(d, x => System.Math.Exp(x)); }
         /// <summary>Absolute value.</summary>
-        protected static mat abs(double[,] d) { return Matrix.Apply(d, x => System.Math.Abs(x)); }
+        protected static MatrixValue abs(double[,] d) { return Matrix.Apply(d, x => System.Math.Abs(x)); }
         /// <summary>Logarithm.</summary>
-        protected static mat log(double[,] d) { return Matrix.Apply(d, x => System.Math.Log(x)); }
+        protected static MatrixValue log(double[,] d) { return Matrix.Apply(d, x => System.Math.Log(x)); }
 
         /// <summary>Creates a magic square matrix.</summary>
-        protected static mat magic(int n) { return Matrix.Magic(n); }
+        protected static MatrixValue magic(int n) { return Matrix.Magic(n); }
 
         // decompositions
         #region svd
         /// <summary>Singular value decomposition.</summary>
-        protected List<mat> svd(double[,] m)
+        protected List<MatrixValue> svd(double[,] m)
         {
             var svd = new SingularValueDecomposition(m, true, true, true);
-            return new List<mat> 
+            return new List<MatrixValue> 
             {
                 svd.LeftSingularVectors, svd.DiagonalMatrix, svd.RightSingularVectors 
             };
@@ -349,29 +349,29 @@ namespace Accord.Math.Environments
         ///   Matrix placeholder.
         /// </summary>
         /// 
-        protected mat _
+        protected MatrixValue _
         {
-            get { return new mat(null); }
+            get { return new MatrixValue(null); }
         }
 
         /// <summary>
         ///   Return setter keyword.
         /// </summary>
         /// 
-        protected readonly retm ret = new retm();
+        protected readonly ReturnMatrix ret = new ReturnMatrix();
 
         /// <summary>
         ///   Return definition operator.
         /// </summary>
         /// 
-        protected class retm
+        protected class ReturnMatrix
         {
             /// <summary>
             ///   Can be used to set output arguments
             ///   to the output of another function.
             /// </summary>
             /// 
-            public List<mat> this[params mat[] a]
+            public List<MatrixValue> this[params MatrixValue[] a]
             {
                 set
                 {
@@ -388,7 +388,7 @@ namespace Accord.Math.Environments
         ///   Matrix definition operator.
         /// </summary>
         /// 
-        protected class mat
+        protected class MatrixValue
         {
             /// <summary>
             ///   Inner matrix object.
@@ -397,10 +397,10 @@ namespace Accord.Math.Environments
             public double[,] matrix;
 
             /// <summary>
-            ///   Initializes a new instance of the <see cref="mat"/> class.
+            ///   Initializes a new instance of the <see cref="MatrixValue"/> class.
             /// </summary>
             /// 
-            public mat(double[,] matrix)
+            public MatrixValue(double[,] matrix)
             {
                 this.matrix = matrix;
             }
@@ -409,7 +409,7 @@ namespace Accord.Math.Environments
             ///   Multiplication operator
             /// </summary>
             /// 
-            public static mat operator *(mat a, mat b)
+            public static MatrixValue operator *(MatrixValue a, MatrixValue b)
             {
                 return Matrix.Dot(a.matrix, b.matrix);
             }
@@ -418,7 +418,7 @@ namespace Accord.Math.Environments
             ///   Multiplication operator
             /// </summary>
             /// 
-            public static mat operator *(mat a, double x)
+            public static MatrixValue operator *(MatrixValue a, double x)
             {
                 return a.matrix.Multiply(x);
             }
@@ -427,7 +427,7 @@ namespace Accord.Math.Environments
             ///   Multiplication operator
             /// </summary>
             /// 
-            public static mat operator *(double x, mat a)
+            public static MatrixValue operator *(double x, MatrixValue a)
             {
                 return a.matrix.Multiply(x);
             }
@@ -436,7 +436,7 @@ namespace Accord.Math.Environments
             ///   Addition operator
             /// </summary>
             /// 
-            public static mat operator +(mat a, double x)
+            public static MatrixValue operator +(MatrixValue a, double x)
             {
                 return a.matrix.Add(x);
             }
@@ -445,7 +445,7 @@ namespace Accord.Math.Environments
             ///   Addition operator
             /// </summary>
             /// 
-            public static mat operator +(double x, mat a)
+            public static MatrixValue operator +(double x, MatrixValue a)
             {
                 return a.matrix.Add(x);
             }
@@ -454,7 +454,7 @@ namespace Accord.Math.Environments
             ///   Addition operator
             /// </summary>
             /// 
-            public static mat operator +(mat a, mat b)
+            public static MatrixValue operator +(MatrixValue a, MatrixValue b)
             {
                 return a.matrix.Add(b.matrix);
             }
@@ -463,7 +463,7 @@ namespace Accord.Math.Environments
             ///   Subtraction operator
             /// </summary>
             /// 
-            public static mat operator -(mat a, mat b)
+            public static MatrixValue operator -(MatrixValue a, MatrixValue b)
             {
                 return a.matrix.Subtract(b.matrix);
             }
@@ -472,7 +472,7 @@ namespace Accord.Math.Environments
             ///   Subtraction operator
             /// </summary>
             /// 
-            public static mat operator -(mat a, double x)
+            public static MatrixValue operator -(MatrixValue a, double x)
             {
                 return a.matrix.Subtract(x);
             }
@@ -481,7 +481,7 @@ namespace Accord.Math.Environments
             ///   Subtraction operator
             /// </summary>
             /// 
-            public static mat operator -(double x, mat a)
+            public static MatrixValue operator -(double x, MatrixValue a)
             {
                 return a.matrix.Subtract(x);
             }
@@ -490,7 +490,7 @@ namespace Accord.Math.Environments
             ///   Equality operator.
             /// </summary>
             /// 
-            public static bool operator ==(mat a, mat b)
+            public static bool operator ==(MatrixValue a, MatrixValue b)
             {
                 return a.matrix.IsEqual(b.matrix);
             }
@@ -499,7 +499,7 @@ namespace Accord.Math.Environments
             ///   Inequality operator.
             /// </summary>
             /// 
-            public static bool operator !=(mat a, mat b)
+            public static bool operator !=(MatrixValue a, MatrixValue b)
             {
                 return !a.matrix.IsEqual(b.matrix);
             }
@@ -508,16 +508,16 @@ namespace Accord.Math.Environments
             ///   Implicit conversion from double[,].
             /// </summary>
             /// 
-            public static implicit operator mat(double[,] m)
+            public static implicit operator MatrixValue(double[,] m)
             {
-                return new mat(m);
+                return new MatrixValue(m);
             }
 
             /// <summary>
             ///   Implicit conversion to double[,].
             /// </summary>
             /// 
-            public static implicit operator double[,](mat m)
+            public static implicit operator double[,](MatrixValue m)
             {
                 return m.matrix;
             }
@@ -526,7 +526,7 @@ namespace Accord.Math.Environments
             ///   Implicit conversion to string.
             /// </summary>
             /// 
-            public static implicit operator string(mat m)
+            public static implicit operator string(MatrixValue m)
             {
                 if ((Object)m == null) 
                     return String.Empty;
@@ -537,7 +537,7 @@ namespace Accord.Math.Environments
             ///   Implicit conversion from list.
             /// </summary>
             /// 
-            public static implicit operator mat(List<mat> m)
+            public static implicit operator MatrixValue(List<MatrixValue> m)
             {
                 return m.First();
             }
@@ -546,7 +546,7 @@ namespace Accord.Math.Environments
             ///   Transpose operator.
             /// </summary>
             /// 
-            public mat t
+            public MatrixValue t
             {
                 get { return matrix.Transpose(); }
             }
@@ -557,7 +557,7 @@ namespace Accord.Math.Environments
             /// 
             public override bool Equals(object obj)
             {
-                mat m = obj as mat;
+                MatrixValue m = obj as MatrixValue;
                 if (m != null)
                     return this.matrix == m.matrix;
 
@@ -587,8 +587,8 @@ namespace Accord.Math.Environments
 
             foreach (FieldInfo field in fields)
             {
-                if (field.FieldType == typeof(mat))
-                    field.SetValue(this, new mat(null));
+                if (field.FieldType == typeof(MatrixValue))
+                    field.SetValue(this, new MatrixValue(null));
             }
         }
 #endif

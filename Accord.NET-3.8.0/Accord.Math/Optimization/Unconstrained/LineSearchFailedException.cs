@@ -25,7 +25,9 @@ namespace Accord.Math.Optimization
     using System;
     using System.Runtime.Serialization;
     using Accord.Compat;
+#if !NET10_0_OR_GREATER
     using System.Security.Permissions;
+#endif
 
     /// <summary>
     ///   Line Search Failed Exception.
@@ -103,10 +105,11 @@ namespace Accord.Math.Optimization
         /// The class name is null or <see cref="P:System.Exception.HResult"/> is zero (0).
         /// </exception>
         /// 
+        [Obsolete]
         protected LineSearchFailedException(SerializationInfo info, StreamingContext context)
             : base(info, context) { }
 
-#if !NETSTANDARD1_4
+#if !NETSTANDARD1_4 && !NET10_0_OR_GREATER
         /// <summary>
         ///   When overridden in a derived class, sets the <see cref="T:System.Runtime.Serialization.SerializationInfo"/> with information about the exception.
         /// </summary>

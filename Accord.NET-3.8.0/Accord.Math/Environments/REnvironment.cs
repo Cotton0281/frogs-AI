@@ -36,7 +36,7 @@ namespace Accord.Math.Environments
         ///   Creates a new vector.
         /// </summary>
         /// 
-        protected vec c(params double[] values)
+        protected VectorValue c(params double[] values)
         {
             return values;
         }
@@ -45,7 +45,7 @@ namespace Accord.Math.Environments
         ///   Creates a new matrix.
         /// </summary>
         /// 
-        protected mat matrix(double[] values, int rows, int cols)
+        protected MatrixValue matrix(double[] values, int rows, int cols)
         {
             return Matrix.Reshape(values, rows, cols, MatrixOrder.FortranColumnMajor);
         }
@@ -55,9 +55,9 @@ namespace Accord.Math.Environments
         ///   Placeholder vector definition
         /// </summary>
         /// 
-        protected vec _
+        protected VectorValue _
         {
-            get { return new vec(null); }
+            get { return new VectorValue(null); }
         }
 
 
@@ -65,7 +65,7 @@ namespace Accord.Math.Environments
         ///   Vector definition operator.
         /// </summary>
         /// 
-        protected class vec
+        protected class VectorValue
         {
             /// <summary>
             ///   Inner vector object
@@ -74,10 +74,10 @@ namespace Accord.Math.Environments
             public double[] vector;
 
             /// <summary>
-            ///   Initializes a new instance of the <see cref="vec"/> class.
+            ///   Initializes a new instance of the <see cref="VectorValue"/> class.
             /// </summary>
             /// 
-            public vec(double[] values)
+            public VectorValue(double[] values)
             {
                 this.vector = values;
             }
@@ -86,7 +86,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator -.
             /// </summary>
             /// 
-            public static vec operator -(vec v)
+            public static VectorValue operator -(VectorValue v)
             {
                 return v;
             }
@@ -95,7 +95,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator &lt;.
             /// </summary>
             /// 
-            public static vec operator <(vec a, vec v)
+            public static VectorValue operator <(VectorValue a, VectorValue v)
             {
                     a.vector = v.vector;
                     return a;
@@ -105,29 +105,29 @@ namespace Accord.Math.Environments
             ///   Implements the operator &gt;.
             /// </summary>
             /// 
-            public static vec operator >(vec a, vec v)
+            public static VectorValue operator >(VectorValue a, VectorValue v)
             {
                 return a;
             }
 
             /// <summary>
             ///   Performs an implicit conversion from <see cref="T:System.Double[]"/>
-            ///   to <see cref="Accord.Math.Environments.REnvironment.vec"/>.
+            ///   to <see cref="Accord.Math.Environments.REnvironment.VectorValue"/>.
             /// </summary>
             /// 
-            public static implicit operator vec(double[] v)
+            public static implicit operator VectorValue(double[] v)
             {
-                return new vec(v);
+                return new VectorValue(v);
             }
 
 
             /// <summary>
             ///   Performs an implicit conversion from 
-            ///   <see cref="Accord.Math.Environments.REnvironment.vec"/> 
+            ///   <see cref="Accord.Math.Environments.REnvironment.VectorValue"/> 
             ///   to <see cref="T:System.Double[]"/>.
             /// </summary>
             /// 
-            public static implicit operator double[](vec v)
+            public static implicit operator double[](VectorValue v)
             {
                 return v.vector;
             }
@@ -137,7 +137,7 @@ namespace Accord.Math.Environments
         ///   Matrix definition operator.
         /// </summary>
         /// 
-        protected class mat
+        protected class MatrixValue
         {
             /// <summary>
             ///   Inner matrix object.
@@ -146,10 +146,10 @@ namespace Accord.Math.Environments
             public double[,] matrix;
 
             /// <summary>
-            ///   Initializes a new instance of the <see cref="mat"/> class.
+            ///   Initializes a new instance of the <see cref="MatrixValue"/> class.
             /// </summary>
             /// 
-            public mat(double[,] values)
+            public MatrixValue(double[,] values)
             {
                 this.matrix = values;
             }
@@ -158,7 +158,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator -.
             /// </summary>
             /// 
-            public static mat operator -(mat v)
+            public static MatrixValue operator -(MatrixValue v)
             {
                 return v;
             }
@@ -167,7 +167,7 @@ namespace Accord.Math.Environments
             ///   Implements the operator &lt;.
             /// </summary>
             /// 
-            public static mat operator <(mat a, mat v)
+            public static MatrixValue operator <(MatrixValue a, MatrixValue v)
             {
                 a.matrix = v.matrix;
                 return a;
@@ -177,7 +177,7 @@ namespace Accord.Math.Environments
             ///    Implements the operator &gt;.
             /// </summary>
             /// 
-            public static mat operator >(mat a, mat v)
+            public static MatrixValue operator >(MatrixValue a, MatrixValue v)
             {
                 return a;
             }
@@ -185,22 +185,22 @@ namespace Accord.Math.Environments
             /// <summary>
             ///   Performs an implicit conversion from 
             ///   <see cref="T:System.Double[]"/> to 
-            ///   <see cref="Accord.Math.Environments.REnvironment.mat"/>.
+            ///   <see cref="Accord.Math.Environments.REnvironment.MatrixValue"/>.
             /// </summary>
             /// 
-            public static implicit operator mat(double[,] v)
+            public static implicit operator MatrixValue(double[,] v)
             {
-                return new mat(v);
+                return new MatrixValue(v);
             }
 
 
             /// <summary>
             ///   Performs an implicit conversion from 
-            ///   <see cref="Accord.Math.Environments.REnvironment.mat"/> 
+            ///   <see cref="Accord.Math.Environments.REnvironment.MatrixValue"/> 
             ///   to <see cref="T:System.Double[]"/>.
             /// </summary>
             /// 
-            public static implicit operator double[,](mat v)
+            public static implicit operator double[,](MatrixValue v)
             {
                 return v.matrix;
             }
