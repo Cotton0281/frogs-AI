@@ -14,3 +14,8 @@ Validate that higher-tier dependent library projects still build on their curren
 3. Record validation outcomes and unresolved blockers (if any) in progress details.
 
 **Done when**: dependent projects build on existing TFMs or any blocking issue is fully documented for immediate follow-up.
+
+## Research Notes
+- Tier-0 (`Accord.Core`) now builds for `net10.0` and existing `netstandard2.0` compatibility target.
+- This subtask validates dependent libraries remain buildable on their current targets after the tier-0 upgrade changes.
+- Validation order follows dependency direction from lowest dependent upward: `Accord.Math.Core` → `Accord.Math` → `Accord.Genetic` / `Accord.Statistics` → `Accord.Neuro`.
