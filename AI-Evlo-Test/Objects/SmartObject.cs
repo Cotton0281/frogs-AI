@@ -116,7 +116,6 @@ namespace AI_Evlo_Test.Objects
         public ObjectCategory Category { get; set; } = ObjectCategory.Frog;
 
         static public int MaxHp { get; set; } = 300;
-        public static double MaxStamina { get; set; } = 200;
         public static double MaxSpeed { get; set; } = 1.5;
 
         /// <summary>Actual movement magnitude from the last tick.</summary>
@@ -125,17 +124,10 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Actual rotation (degrees) applied last tick. Negative = left, positive = right.</summary>
         public double LastRotation { get; protected set; } = 0;
 
-        /// <summary>Stamina regenerated per tick.</summary>
-        private const double StaminaRegenRate = 0.3;
-
-        /// <summary>Stamina cost per unit of combined output magnitude.</summary>
-        private const double StaminaCostPerUnit = 0.15;
-
         public int Cycles { get; set; } = 0;
         public int Generation { get; set; } = 0;
         public int Ofsprings { get; set; } = 0;
         public double Fitness { get { return Cycles - Ofsprings; } }
-        public double Stamina { get; set; } = 200;
 
         /// <summary>Per-instance HP ceiling. Override in subclasses to raise the cap.</summary>
         public virtual int EffectiveMaxHp => MaxHp;
@@ -153,7 +145,8 @@ namespace AI_Evlo_Test.Objects
         public virtual ObjectCategory[] IgnoredCategories => FrogIgnoredCategories;
 
         /// <summary>Shared "frogs can't see frogs" filter to avoid per-tick allocation.</summary>
-        protected static readonly ObjectCategory[] FrogIgnoredCategories = { ObjectCategory.Frog };
+        protected static readonly ObjectCategory[] FrogIgnoredCategories =
+            { ObjectCategory.Frog, ObjectCategory.Frog_OnRaft };
 
         /// <summary>
         /// Returns the sprite frame to display this tick, or null for shape-based agents.
@@ -179,13 +172,12 @@ namespace AI_Evlo_Test.Objects
         public bool IsGettingHP { get; set; } = false;
 
         private double[] _cachedInputs;
-        public double[] CachedInputs => _cachedInputs ?? (_cachedInputs = new double[Perception.Signals.Length + 2]);
+        public double[] CachedInputs => _cachedInputs ?? (_cachedInputs = new double[Perception.Signals.Length + 1]);
 
         private double _hP;
 
         /// <summary>
         /// Give neuroNet new inputs, calculate outputs, trigger actions with the outputs.
-        /// Movement is scaled by current stamina fraction so exhausted agents slow down.
         /// </summary>
         /// <param name="arrayInputs"></param>
         public virtual double[] Act(double[] arrayInputs)
@@ -202,22 +194,10 @@ namespace AI_Evlo_Test.Objects
             double rotationRequest = dblOutputs[0] * 3;
             double thrustRequest = dblOutputs[1] + 0.5;
 
-            // Drain stamina proportional to requested effort
-            double requestedCost = StaminaCostPerUnit * (Math.Abs(rotationRequest) + Math.Abs(thrustRequest));
-            Stamina -= requestedCost;
-            if (Stamina < 0) Stamina = 0;
-
-            // Scale movement by remaining stamina — exhausted agents move less
-            double staminaFraction = MaxStamina > 0 ? Stamina / MaxStamina : 0;
-            double actualThrust = thrustRequest * staminaFraction;
-            double actualRotation = rotationRequest * staminaFraction;
-            this.Rotate(actualRotation);
-            this.PushForward(actualThrust);
-            LastSpeed = Math.Abs(actualThrust);
-            LastRotation = actualRotation;
-
-            // Regenerate stamina slowly each tick
-            Stamina = Math.Min(MaxStamina, Stamina + StaminaRegenRate);
+            this.Rotate(rotationRequest);
+            this.PushForward(thrustRequest);
+            LastSpeed = Math.Abs(thrustRequest);
+            LastRotation = rotationRequest;
 
             return dblOutputs;
         }
@@ -244,8 +224,6 @@ namespace AI_Evlo_Test.Objects
                     if (raft.HpCharge > 0)
                     {
                         IsGettingHP = true;
-                        if (this is Frog frog)
-                            ctx.FrogsOnRafts.Add(Tuple.Create(frog, raft));
                     }
                 }
             }
@@ -322,10 +300,6 @@ namespace AI_Evlo_Test.Objects
         /// True if received HP from a target in this cycle
         /// </summary>
         bool IsGettingHP { get; set; }
-        /// <summary>
-        /// Current stamina level. Drains with movement, regenerates slowly.
-        /// </summary>
-        double Stamina { get; set; }
         double[] Act(double[] arrayInputs);
         void Dispose();
     }

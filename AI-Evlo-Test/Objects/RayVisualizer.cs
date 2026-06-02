@@ -14,8 +14,9 @@ namespace AI_Evlo_Test.Objects
     ///   Gray       = ray miss (reached max distance)
     ///   LimeGreen  = hit food/target
     ///   DodgerBlue = hit raft
-    ///   Gold       = hit ally frog (same population)
-    ///   OrangeRed  = hit other frog (different population)
+    ///   Gold       = hit frog
+    ///   OrangeRed  = hit bird
+    ///   Crimson    = hit shark
     ///   White dot  = exact hit point
     /// </summary>
     public class RayVisualizer
@@ -158,6 +159,7 @@ namespace AI_Evlo_Test.Objects
                 case ObjectCategory.Raft: return BrushRaft;
                 case ObjectCategory.Raft_Sunk: return BrushRaftSunk;
                 case ObjectCategory.Frog: return BrushAlly;
+                case ObjectCategory.Frog_OnRaft: return BrushAlly;
                 case ObjectCategory.Bird: return BrushOther;
                 case ObjectCategory.Bird_Landed: return BrushOther;
                 case ObjectCategory.Shark: return BrushShark;

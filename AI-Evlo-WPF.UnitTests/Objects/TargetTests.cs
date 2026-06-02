@@ -3,7 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace AI_Evlo_WPF.UnitTests.Objects
 {
-    [TestClass]
+    [STATestClass]
     public class TargetTests
     {
         [TestMethod]

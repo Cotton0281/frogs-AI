@@ -33,14 +33,8 @@ namespace AI_Evlo_Test.Objects
         /// <summary>HP lost each tick — sharks must eat to survive.</summary>
         public const double SwimHpDrain = 0.4;
 
-        /// <summary>HP gained per frog eaten.</summary>
-        public const double HuntHpGain = 200;
-
         /// <summary>Sharks can strike a frog within this distance in open water.</summary>
         public const double HuntRange = 26;
-
-        /// <summary>Sharks move 1.5× the base agent speed — fast underwater hunters.</summary>
-        public const double SpeedMultiplier = 1.5;
 
         /// <summary>Sharks have 5× the base HP cap, like birds.</summary>
         public static int SharkMaxHp => MaxHp * 5;
@@ -60,11 +54,11 @@ namespace AI_Evlo_Test.Objects
         public override ObjectCategory SenseCategory => ObjectCategory.Shark;
 
         /// <summary>
-        /// Sharks see rafts and frogs only — their vision is not obstructed by other sharks
-        /// or by birds (which fly above the water).
+        /// Sharks can see rafts, birds, and frogs in water. Sharks ignore other sharks and
+        /// frogs resting on rafts.
         /// </summary>
         private static readonly ObjectCategory[] SharkIgnored =
-            { ObjectCategory.Shark, ObjectCategory.Bird, ObjectCategory.Bird_Landed };
+            { ObjectCategory.Shark, ObjectCategory.Frog_OnRaft };
         public override ObjectCategory[] IgnoredCategories => SharkIgnored;
 
         public Shark()
@@ -136,6 +130,7 @@ namespace AI_Evlo_Test.Objects
         {
             IsGettingHP = false;
             HP -= SwimHpDrain;
+            ctx.Sharks.Add(this);
 
             if (IsHungry)
                 ctx.HungrySharks.Add(this);

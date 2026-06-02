@@ -75,6 +75,8 @@ namespace AI_Evlo_Test.Objects
             }
             if (numMutations == 0 && Mutations > 0)
                 numMutations = 1;// make at least 1 change
+            if (numMutations > lsIndex.Count)
+                numMutations = lsIndex.Count;
 
             // Fisher-Yates partial shuffle: swap selected items to the end of the list — O(1) per pick
             int remaining = lsIndex.Count;

@@ -69,57 +69,118 @@ namespace AI_Evlo_Test
 
         private void ReGrowPopulation(Population objPopulation)
         {
-            if (objPopulation.Count == 0)
+            TryRegrowPopulation(objPopulation, DateTime.Now);
+        }
+
+        internal bool TryRegrowPopulation(Population population, DateTime now)
+        {
+            if (!PopulationRegrowthPolicy.NeedsRegrowth(population))
             {
-                for (int i = 0; i < objPopulation.SizeLimit; i++)
-                {
-                    ISmartObject newObj = CreatePopulationMember(objPopulation);
-
-                    lsObjects.Add(newObj);
-                    objPopulation.Add(newObj);
-                    if (objPopulation.lsBestGenes.Count > i)
-                    {
-                        GenomeRecord ParentGeno = objPopulation.lsBestGenes[i];
-                        NeuralNetworkFactory NNetworkFactory = NeuralNetworkFactory.GetInstance();
-                        newObj.NNetwork = NNetworkFactory.Create(ParentGeno.Gene);
-                        newObj.Generation = ParentGeno.Generation + 1;
-                        newObj.ParentId = ParentGeno.ID;
-                        newObj.ID = objPopulation.GenerateMemberId(ParentGeno);
-                        ParentGeno.Ofsprings++;
-                    }
-                    else
-                        newObj.ID = objPopulation.GenerateMemberId();
-
-                }
-                if (objPopulation.lsBestGenes.Count > 0)
-                {
-                    double minBestFitness = objPopulation.lsBestGenes[objPopulation.lsBestGenes.Count - 1].Fitness;
-                    double maxBestFitness = objPopulation.lsBestGenes[0].Fitness;
-                    Log(objPopulation.Name + $" restarted. Used {objPopulation.lsBestGenes.Count} best genes from archive with fithnes from {minBestFitness} to {maxBestFitness}");
-                }
-                return;
+                PopulationRegrowthPolicy.ClearSchedule(population);
+                return false;
             }
 
-            /// Use life agents as parents to repopulate. Get only ones that have more than minimum HP
-            List<ISmartObject> lsParentsOrderBy = objPopulation.Members
-                                                .Where(ob => ob.HP > SmartObject.MaxHp / 10)
-                                                .OrderByDescending(o => o.Fitness).ToList();
-            if (lsParentsOrderBy.Count > 0)
+            if (population.NextRegrowAt == DateTime.MinValue)
             {
-                // loop through parents until generation is created
-                int newSize = (int)((objPopulation.SizeLimit * 1.2) - objPopulation.Members.Count);
-                int indexParent = 0;
-                for (int i = 0; i < newSize; i++)
-                {
-                    if (indexParent >= lsParentsOrderBy.Count)
-                        indexParent = 0;
-
-                    ISmartObject newObj = CreateOffspring(lsParentsOrderBy[indexParent] as ISmartObject, objPopulation);
-                    lsObjects.Add(newObj);
-                    objPopulation.Add(newObj);
-                    indexParent++;
-                }
+                PopulationRegrowthPolicy.ScheduleNextSpawn(population, now);
+                return false;
             }
+
+            if (!PopulationRegrowthPolicy.ShouldSpawn(population, now))
+                return false;
+
+            RegrowthBrainSource source = PopulationRegrowthPolicy.SelectSource(population);
+            ISmartObject newObj = CreateRegrowthMember(population, source);
+            AddPopulationMember(population, newObj);
+            PopulationRegrowthPolicy.MarkSpawned(population, now);
+            if (!PopulationRegrowthPolicy.NeedsRegrowth(population))
+                PopulationRegrowthPolicy.ClearSchedule(population);
+
+            return true;
+        }
+
+        private void FillPopulationImmediate(Population population, bool useArchive)
+        {
+            while (population.Members.Count < population.SizeLimit)
+            {
+                ISmartObject newObj = null;
+                int archiveIndex = population.Members.Count;
+                if (useArchive && archiveIndex < population.lsBestGenes.Count)
+                    newObj = CreateFromArchivedGene(population, population.lsBestGenes[archiveIndex], mutate: false);
+
+                if (newObj == null)
+                    newObj = CreatePopulationMember(population);
+
+                AddPopulationMember(population, newObj);
+            }
+
+            PopulationRegrowthPolicy.ClearSchedule(population);
+        }
+
+        private ISmartObject CreateRegrowthMember(Population population, RegrowthBrainSource source)
+        {
+            switch (source.Kind)
+            {
+                case RegrowthBrainSourceKind.ArchivedBestExact:
+                    return CreateFromArchivedGene(population, source.ArchivedParent, mutate: false);
+                case RegrowthBrainSourceKind.ArchivedBestMutated:
+                    return CreateFromArchivedGene(population, source.ArchivedParent, mutate: true);
+                case RegrowthBrainSourceKind.AliveBestExact:
+                    return CreateFromAliveParent(population, source.AliveParent, mutate: false);
+                case RegrowthBrainSourceKind.AliveBestMutated:
+                    return CreateFromAliveParent(population, source.AliveParent, mutate: true);
+                default:
+                    return CreatePopulationMember(population);
+            }
+        }
+
+        private ISmartObject CreateFromArchivedGene(Population population, GenomeRecord parent, bool mutate)
+        {
+            if (parent == null || parent.Gene == null)
+                return CreatePopulationMember(population);
+
+            NeuralNetworkFactory nNetworkFactory = NeuralNetworkFactory.GetInstance();
+            INeuralNetwork network = nNetworkFactory.Create(Utils.CloneGene(parent.Gene));
+            if (mutate)
+                network = evoChember.MutateNN(network, 1, false);
+
+            ISmartObject newObj = CreatePopulationMember(population);
+            newObj.NNetwork = network;
+            newObj.Generation = parent.Generation + 1;
+            newObj.ParentId = parent.ID;
+            newObj.ID = population.GenerateMemberId(parent);
+            parent.Ofsprings++;
+            return newObj;
+        }
+
+        private ISmartObject CreateFromAliveParent(Population population, ISmartObject parent, bool mutate)
+        {
+            if (parent == null || parent.NNetwork == null)
+                return CreatePopulationMember(population);
+
+            INeuralNetwork network = Utils.CloneNeuroNet(parent.NNetwork);
+            if (mutate)
+                network = evoChember.MutateNN(network, 1, false);
+
+            ISmartObject newObj = CreatePopulationMember(population);
+            newObj.NNetwork = network;
+            newObj.SetLocation(parent.Location.X + 1, parent.Location.Y + 1);
+            if (!isHeadlessMode && newObj.VisibleShape != null)
+                DrawImage(newObj.VisibleShape, newObj.Location);
+
+            newObj.Generation = parent.Generation + 1;
+            newObj.ParentId = parent.ID;
+            newObj.ID = population.GenerateMemberId(parent);
+            parent.Ofsprings++;
+            return newObj;
+        }
+
+        private void AddPopulationMember(Population population, ISmartObject newObj)
+        {
+            lsObjects.Add(newObj);
+            population.Add(newObj);
+            if (string.IsNullOrEmpty(newObj.ID) || newObj.ID == "0")
+                newObj.ID = population.GenerateMemberId();
         }
 
         private SmartObject NewSmartObject2(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)

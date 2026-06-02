@@ -29,7 +29,7 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.NeuralNetworkVisualizerControl1 = new NeuralNetworkVisualizer.NeuralNetworkVisualizerControl();
+            this.networkView = new AI_Evlo_Test.NeuralNetworkView();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.toolStripStatusText = new System.Windows.Forms.ToolStripStatusLabel();
             this.btnRefreshNNVisual = new System.Windows.Forms.Button();
@@ -39,22 +39,18 @@
             this.statusStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
-            // NeuralNetworkVisualizerControl1
+            // networkView
             // 
-            this.NeuralNetworkVisualizerControl1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            this.networkView.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.NeuralNetworkVisualizerControl1.AutoScroll = true;
-            this.NeuralNetworkVisualizerControl1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            this.NeuralNetworkVisualizerControl1.BackColor = System.Drawing.Color.White;
-            this.NeuralNetworkVisualizerControl1.InputLayer = null;
-            this.NeuralNetworkVisualizerControl1.Location = new System.Drawing.Point(0, 38);
-            this.NeuralNetworkVisualizerControl1.Margin = new System.Windows.Forms.Padding(6, 6, 6, 6);
-            this.NeuralNetworkVisualizerControl1.Name = "NeuralNetworkVisualizerControl1";
-            this.NeuralNetworkVisualizerControl1.Selectable = true;
-            this.NeuralNetworkVisualizerControl1.Size = new System.Drawing.Size(1221, 669);
-            this.NeuralNetworkVisualizerControl1.TabIndex = 0;
-            this.NeuralNetworkVisualizerControl1.Zoom = 1F;
+            this.networkView.BackColor = System.Drawing.Color.White;
+            this.networkView.Location = new System.Drawing.Point(0, 38);
+            this.networkView.Margin = new System.Windows.Forms.Padding(6, 6, 6, 6);
+            this.networkView.Name = "networkView";
+            this.networkView.Network = null;
+            this.networkView.Size = new System.Drawing.Size(1221, 669);
+            this.networkView.TabIndex = 0;
             // 
             // statusStrip1
             // 
@@ -120,7 +116,7 @@
             this.Controls.Add(this.btnMutate);
             this.Controls.Add(this.btnRefreshNNVisual);
             this.Controls.Add(this.statusStrip1);
-            this.Controls.Add(this.NeuralNetworkVisualizerControl1);
+            this.Controls.Add(this.networkView);
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "VisualizeNetwork";
             this.Text = "VisualizeNetwork";
@@ -133,7 +129,7 @@
 
         #endregion
 
-        private NeuralNetworkVisualizer.NeuralNetworkVisualizerControl NeuralNetworkVisualizerControl1;
+        private AI_Evlo_Test.NeuralNetworkView networkView;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusText;
         private System.Windows.Forms.Button btnRefreshNNVisual;

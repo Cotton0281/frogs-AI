@@ -1,12 +1,13 @@
 ﻿using AI_Evlo_Test.Objects;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Shapes;
 
 namespace AI_Evlo_WPF.UnitTests.Objects
 {
-    [TestClass]
+    [STATestClass]
     public class RayVisualizerTests
     {
         private Canvas _canvas = null!;
@@ -629,7 +630,25 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             visualizer.Draw(new Point(50, 50), perception);
 
             // Assert
-            Assert.IsGreaterThan(_canvas.Children.Count, 0);
+            Assert.IsGreaterThan(0, _canvas.Children.Count);
+        }
+
+        [TestMethod]
+        public void Draw_WithFrogOnRaftHit_UsesFrogBrush()
+        {
+            var visualizer = new RayVisualizer(_canvas, 1);
+            var perception = new RayPerception(1, 100, 180, 1.0);
+            perception.Hits[0] = new RayHit
+            {
+                IsValid = true,
+                HitPoint = new Point(100, 100),
+                Category = ObjectCategory.Frog_OnRaft
+            };
+
+            visualizer.Draw(new Point(50, 50), perception);
+
+            var line = _canvas.Children.OfType<Line>().First();
+            Assert.AreEqual(System.Windows.Media.Brushes.Gold, line.Stroke);
         }
     }
 }

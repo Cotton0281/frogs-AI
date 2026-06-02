@@ -1,14 +1,16 @@
 ﻿using AI_Evlo_Test.Enumerators;
 using AI_Evlo_Test.Objects;
 using ArtificialNeuralNetwork;
+using ArtificialNeuralNetwork.Factories;
 using ArtificialNeuralNetwork.Genes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AI_Evlo_WPF.UnitTests.Objects
 {
-    [TestClass]
+    [STATestClass]
     public class EvolutionChemberTests
     {
         [TestMethod]
@@ -450,6 +452,21 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Assert.IsNotNull(result);
         }
 
+        [TestMethod]
+        public void MutateNN_AbsoluteMutation_ChangesNetworkGenes()
+        {
+            var evolutionChember = new EvolutionChember();
+            var factory = NeuralNetworkFactory.GetInstance();
+            var network = factory.Create(CreateTestGenesWithHiddenLayer());
+            List<double> originalValues = FlattenGeneValues(network.GetGenes()).ToList();
+
+            INeuralNetwork mutated = evolutionChember.MutateNN(network, 1, false);
+            List<double> mutatedValues = FlattenGeneValues(mutated.GetGenes()).ToList();
+
+            Assert.HasCount(originalValues.Count, mutatedValues);
+            Assert.IsTrue(originalValues.Zip(mutatedValues, (left, right) => left != right).Any(changed => changed));
+        }
+
         private NeuralNetworkGene CreateLargeTestGenes()
         {
             var genes = new NeuralNetworkGene();
@@ -579,6 +596,29 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             genes.HiddenGenes.Add(hiddenLayer);
 
             return genes;
+        }
+
+        private static IEnumerable<double> FlattenGeneValues(NeuralNetworkGene gene)
+        {
+            foreach (double value in FlattenLayerValues(gene.InputGene))
+                yield return value;
+
+            foreach (LayerGene hiddenGene in gene.HiddenGenes)
+                foreach (double value in FlattenLayerValues(hiddenGene))
+                    yield return value;
+
+            foreach (double value in FlattenLayerValues(gene.OutputGene))
+                yield return value;
+        }
+
+        private static IEnumerable<double> FlattenLayerValues(LayerGene layer)
+        {
+            foreach (NeuronGene neuron in layer.Neurons)
+            {
+                yield return neuron.Soma.Bias;
+                foreach (double weight in neuron.Axon.Weights)
+                    yield return weight;
+            }
         }
     }
 }

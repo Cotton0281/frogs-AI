@@ -4,7 +4,7 @@ using CoordinatesUtil;
 
 namespace AI_Evlo_WPF.UnitTests.Objects;
 
-[TestClass]
+[STATestClass]
 public class PolarCoordinateSystemTests
 {
     [TestMethod]

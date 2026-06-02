@@ -12,6 +12,7 @@ namespace AI_Evlo_Test.Objects
         Food = -6,
         Raft = -5,
         Raft_Sunk = -4,
+        Frog_OnRaft = -2,
         Frog = -1,
         Bird = 1,
         Bird_Landed = 5,

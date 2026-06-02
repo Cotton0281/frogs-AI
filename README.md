@@ -14,12 +14,12 @@ descent. The only signal is **survival**, and the only feedback loop is **natura
 A living **ecosystem** runs in real time on a canvas, with multiple co-evolving species:
 
 - **[Frogs](AI-Evlo-Test/data/Frog.md)** swim in open water and must rest on **rafts** to recover HP.
-- **[Birds](AI-Evlo-Test/data/Bird.md)** are aerial predators that land on rafts and eat the frogs that linger there.
+- **[Birds](AI-Evlo-Test/data/Bird.md)** are aerial predators that land on rafts and eat nearby sharks.
 - **[Sharks](AI-Evlo-Test/data/Shark.md)** are underwater predators that eat frogs in open water — but never frogs safe on a raft.
 
 Each creature senses its world through **ego-centric raycasting** (whisker-like "vision"), feeds those
-signals into its own neural network, and acts — rotating and thrusting — entirely on its own. Birds and
-sharks squeeze the frogs from above and below, so there is no single safe strategy; the population has to
+signals into its own neural network, and acts — rotating and thrusting — entirely on its own. Sharks
+pressure frogs in open water while birds pressure sharks from rafts, so there is no single safe strategy; the population has to
 *discover* one.
 
 ## The research angles it lets you poke at
@@ -37,10 +37,10 @@ sharks squeeze the frogs from above and below, so there is no single safe strate
 
 - Manage one or more **populations** of neural-net-driven agents.
 - Score every agent by a **fitness** value (lifespan vs. reproduction cost).
-- Archive each population's **best genomes** so a depleted population can re-grow from its strongest
-  ancestors.
+- Archive each population's **best genomes** so depleted populations can regrow gradually from a
+  rotating mix of archived best, live best, mutated, and random brains.
 - **Mutate, compete, rank, repeat** — across generations, fitter brains dominate the gene pool.
-- Inspect any individual live: HP / stamina, generation, and a peek at its neural network.
+- Inspect any individual live: HP, generation, and a peek at its neural network.
 
 ## The desktop viewer
 

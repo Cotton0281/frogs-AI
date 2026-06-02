@@ -270,11 +270,10 @@ namespace AI_Evlo_Test.Objects
         /// <summary>
         /// Fills the provided buffer with the given extras prepended and then the ray signals.
         /// </summary>
-        public void FillInputs(double[] buffer, double hpDeficit, double staminaDeficit)
+        public void FillInputs(double[] buffer, double hpDeficit)
         {
             buffer[0] = hpDeficit;
-            buffer[1] = staminaDeficit;
-            Array.Copy(Signals, 0, buffer, 2, Signals.Length);
+            Array.Copy(Signals, 0, buffer, 1, Signals.Length);
         }
     }
 

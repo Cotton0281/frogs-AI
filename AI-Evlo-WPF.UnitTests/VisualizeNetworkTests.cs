@@ -1,15 +1,17 @@
 ﻿using AI_Evlo_Test;
 using AI_Evlo_Test.Objects;
 using ArtificialNeuralNetwork;
+using ArtificialNeuralNetwork.Factories;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace AI_Evlo_WPF.UnitTests
 {
-    [TestClass]
+    [STATestClass]
     public class VisualizeNetworkTests
     {
         // Status Property Tests
@@ -324,6 +326,53 @@ namespace AI_Evlo_WPF.UnitTests
 
             // Assert - Method should complete without exceptions
             Assert.IsNotNull(visualizeNetwork);
+        }
+
+        [TestMethod]
+        public void NeuralNetworkView_DrawToBitmap_UsesFullAvailableWidth()
+        {
+            var factory = NeuralNetworkFactory.GetInstance();
+            var network = factory.Create(25, 2, 3, 13);
+            using var view = new NeuralNetworkView
+            {
+                Network = network,
+                Size = new Size(1200, 700)
+            };
+            using var bitmap = new Bitmap(view.Width, view.Height);
+
+            view.DrawToBitmap(bitmap, new System.Drawing.Rectangle(0, 0, view.Width, view.Height));
+            System.Drawing.Rectangle drawnBounds = GetNonWhiteBounds(bitmap);
+
+            Assert.IsLessThan(100, drawnBounds.Left, $"Expected drawing near left edge, got {drawnBounds.Left}.");
+            Assert.IsGreaterThan(1100, drawnBounds.Right, $"Expected drawing near right edge, got {drawnBounds.Right}.");
+        }
+
+        private static System.Drawing.Rectangle GetNonWhiteBounds(Bitmap bitmap)
+        {
+            int minX = bitmap.Width;
+            int minY = bitmap.Height;
+            int maxX = -1;
+            int maxY = -1;
+            int white = Color.White.ToArgb();
+
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    if (bitmap.GetPixel(x, y).ToArgb() == white)
+                        continue;
+
+                    minX = Math.Min(minX, x);
+                    minY = Math.Min(minY, y);
+                    maxX = Math.Max(maxX, x);
+                    maxY = Math.Max(maxY, y);
+                }
+            }
+
+            if (maxX < 0)
+                return System.Drawing.Rectangle.Empty;
+
+            return System.Drawing.Rectangle.FromLTRB(minX, minY, maxX + 1, maxY + 1);
         }
 
         private INeuralNetwork CreateMockNeuralNetwork()

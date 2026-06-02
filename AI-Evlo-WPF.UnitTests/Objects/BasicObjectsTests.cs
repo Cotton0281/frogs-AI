@@ -5,7 +5,7 @@ using System.Windows;
 
 namespace AI_Evlo_WPF.UnitTests.Objects
 {
-    [TestClass]
+    [STATestClass]
     public class BasicObjectsTests
     {
         // Location Property Tests

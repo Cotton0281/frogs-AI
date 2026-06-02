@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace AI_Evlo_WPF.UnitTests
 {
-    [TestClass]
+    [STATestClass]
     public class PopulationListTests
     {
         [TestMethod]

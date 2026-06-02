@@ -5,7 +5,7 @@ using Moq;
 
 namespace AI_Evlo_WPF.UnitTests.Objects
 {
-    [TestClass]
+    [STATestClass]
     public class SmartObjectTests
     {
         [TestMethod]
@@ -136,11 +136,120 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
+        public void Bird_InteractWithRafts_WhenLanded_DrainsOneFifthOfFlyingHp()
+        {
+            var raft = new TargetObj { Size = 100, HpCharge = 1 };
+            raft.SetLocation(0, 0);
+            var landed = new Bird { HP = 100 };
+            landed.SetLocation(0, 0);
+            var flying = new Bird { HP = 100 };
+            flying.SetLocation(200, 0);
+            var ctx = new RaftTickContext
+            {
+                Rafts = new System.Collections.Generic.List<TargetObj> { raft }
+            };
+
+            landed.InteractWithRafts(ctx);
+            flying.InteractWithRafts(ctx);
+
+            double landedDrain = 100 - landed.HP;
+            double flyingDrain = 100 - flying.HP;
+            Assert.AreEqual(flyingDrain / 5.0, landedDrain, 0.000001);
+        }
+
+        [TestMethod]
+        public void Bird_InteractWithRafts_WhenFlyingAndHungry_RegistersAsHunter()
+        {
+            var raft = new TargetObj { Size = 100, HpCharge = 1 };
+            raft.SetLocation(0, 0);
+            var bird = new Bird { HP = 100 };
+            bird.SetLocation(200, 0);
+            var ctx = new RaftTickContext
+            {
+                Rafts = new System.Collections.Generic.List<TargetObj> { raft }
+            };
+
+            bird.InteractWithRafts(ctx);
+
+            Assert.IsFalse(bird.IsLanded);
+            Assert.AreSame(bird, ctx.HungryBirds[0]);
+        }
+
+        [TestMethod]
+        public void ResolveBirdHuntsForTick_WhenBirdEatsShark_AddsSharkHpToBird()
+        {
+            var bird = new Bird { HP = 100 };
+            bird.SetLocation(0, 0);
+            var shark = new Shark { HP = 123 };
+            shark.SetLocation(10, 0);
+
+            var eaten = AI_Evlo_Test.MainWindow.ResolveBirdHuntsForTick(
+                new System.Collections.Generic.List<Bird> { bird },
+                new System.Collections.Generic.List<Shark> { shark });
+
+            Assert.AreEqual(223, bird.HP);
+            Assert.AreEqual(1, bird.SharksEaten);
+            Assert.AreEqual(0, shark.HP);
+            Assert.AreSame(shark, eaten[0]);
+        }
+
+        [TestMethod]
+        public void Bird_IgnoredCategories_DoesNotIgnoreSharks()
+        {
+            var bird = new Bird();
+
+            bool ignoresShark = System.Array.Exists(
+                bird.IgnoredCategories,
+                category => category == ObjectCategory.Shark);
+
+            Assert.IsFalse(ignoresShark);
+        }
+
+        [TestMethod]
+        public void Shark_IgnoredCategories_SeesBirdsAndWaterFrogsButIgnoresRaftFrogs()
+        {
+            var shark = new Shark();
+
+            bool ignoresBird = System.Array.Exists(
+                shark.IgnoredCategories,
+                category => category == ObjectCategory.Bird || category == ObjectCategory.Bird_Landed);
+            bool ignoresWaterFrog = System.Array.Exists(
+                shark.IgnoredCategories,
+                category => category == ObjectCategory.Frog);
+            bool ignoresRaftFrog = System.Array.Exists(
+                shark.IgnoredCategories,
+                category => category == ObjectCategory.Frog_OnRaft);
+
+            Assert.IsFalse(ignoresBird);
+            Assert.IsFalse(ignoresWaterFrog);
+            Assert.IsTrue(ignoresRaftFrog);
+        }
+
+        [TestMethod]
+        public void RayPerception_WhenFrogOnRaftIgnored_DetectsWaterFrogBehindIt()
+        {
+            var perception = new RayPerception(1, 100, 0, 1.0);
+            var raftFrog = new TargetObj { Size = 10, Category = ObjectCategory.Frog_OnRaft };
+            raftFrog.SetLocation(20, 0);
+            var waterFrog = new TargetObj { Size = 10, Category = ObjectCategory.Frog };
+            waterFrog.SetLocation(40, 0);
+            var objects = new System.Collections.Generic.List<ISensable> { raftFrog, waterFrog };
+
+            perception.Update(
+                new Point(0, 0),
+                new System.Windows.Vector(1, 0),
+                objects,
+                ignoredCategories: new[] { ObjectCategory.Frog_OnRaft });
+
+            Assert.AreEqual(ObjectCategory.Frog, perception.Hits[0].Category);
+        }
+
+        [TestMethod]
         public void CachedInputs_WhenNull_CreatesNewArrayWithCorrectLength()
         {
             // Arrange
             var smartObject = new SmartObject();
-            int expectedLength = smartObject.Perception.Signals.Length + 2;
+            int expectedLength = smartObject.Perception.Signals.Length + 1;
 
             // Act
             var cachedInputs = smartObject.CachedInputs;
@@ -289,45 +398,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
-        public void Act_WithHighOutputs_DrainsStamina()
-        {
-            // Arrange
-            var mockNeuralNetwork = new Mock<INeuralNetwork>();
-            mockNeuralNetwork.Setup(nn => nn.GetOutputs()).Returns(new double[] { 1.0, 1.0 });
-
-            var smartObject = new SmartObject();
-            smartObject.NNetwork = mockNeuralNetwork.Object;
-            smartObject.Stamina = 200.0;
-            double[] inputs = new double[5];
-
-            // Act
-            smartObject.Act(inputs);
-
-            // Assert
-            Assert.IsLessThan(smartObject.Stamina, 200.0);
-        }
-
-        [TestMethod]
-        public void Act_WhenStaminaBelowZero_ClampsToZero()
-        {
-            // Arrange
-            var mockNeuralNetwork = new Mock<INeuralNetwork>();
-            mockNeuralNetwork.Setup(nn => nn.GetOutputs()).Returns(new double[] { 1.0, 1.0 });
-
-            var smartObject = new SmartObject();
-            smartObject.NNetwork = mockNeuralNetwork.Object;
-            smartObject.Stamina = 0.1;
-            double[] inputs = new double[5];
-
-            // Act
-            smartObject.Act(inputs);
-
-            // Assert
-            Assert.AreEqual(0.0, smartObject.Stamina);
-        }
-
-        [TestMethod]
-        public void Act_WithZeroStamina_SetsLastSpeedToZero()
+        public void Act_WithOutputs_StoresRequestedMovement()
         {
             // Arrange
             var mockNeuralNetwork = new Mock<INeuralNetwork>();
@@ -335,104 +406,18 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             var smartObject = new SmartObject();
             smartObject.NNetwork = mockNeuralNetwork.Object;
-            smartObject.Stamina = 0.0;
             double[] inputs = new double[5];
 
             // Act
             smartObject.Act(inputs);
 
             // Assert
-            Assert.AreEqual(0.0, smartObject.LastSpeed);
+            Assert.AreEqual(1.0, smartObject.LastSpeed);
+            Assert.AreEqual(1.5, smartObject.LastRotation);
         }
 
         [TestMethod]
-        public void Act_WithValidNeuralNetwork_RegeneratesStamina()
-        {
-            // Arrange
-            var mockNeuralNetwork = new Mock<INeuralNetwork>();
-            mockNeuralNetwork.Setup(nn => nn.GetOutputs()).Returns(new double[] { 0.0, 0.0 });
-
-            var smartObject = new SmartObject();
-            smartObject.NNetwork = mockNeuralNetwork.Object;
-            smartObject.Stamina = 100.0;
-            double[] inputs = new double[5];
-
-            // Act
-            smartObject.Act(inputs);
-
-            // Assert
-            Assert.IsGreaterThan(smartObject.Stamina, 100.0);
-        }
-
-        [TestMethod]
-        public void Act_StaminaRegeneration_DoesNotExceedMaxStamina()
-        {
-            // Arrange
-            var mockNeuralNetwork = new Mock<INeuralNetwork>();
-            mockNeuralNetwork.Setup(nn => nn.GetOutputs()).Returns(new double[] { 0.0, 0.0 });
-
-            var smartObject = new SmartObject();
-            smartObject.NNetwork = mockNeuralNetwork.Object;
-            double originalMaxStamina = SmartObject.MaxStamina;
-            SmartObject.MaxStamina = 200;
-            smartObject.Stamina = 199.9;
-            double[] inputs = new double[5];
-
-            // Act
-            smartObject.Act(inputs);
-
-            // Assert
-            Assert.AreEqual(200.0, smartObject.Stamina);
-
-            // Cleanup
-            SmartObject.MaxStamina = originalMaxStamina;
-        }
-
-        [TestMethod]
-        public void Act_WithNegativeOutputs_DrainsStaminaUsingAbsoluteValues()
-        {
-            // Arrange
-            var mockNeuralNetwork = new Mock<INeuralNetwork>();
-            mockNeuralNetwork.Setup(nn => nn.GetOutputs()).Returns(new double[] { -1.0, -1.0 });
-
-            var smartObject = new SmartObject();
-            smartObject.NNetwork = mockNeuralNetwork.Object;
-            smartObject.Stamina = 200.0;
-            double[] inputs = new double[5];
-
-            // Act
-            smartObject.Act(inputs);
-
-            // Assert
-            Assert.IsLessThan(smartObject.Stamina, 200.0);
-        }
-
-        [TestMethod]
-        public void Act_WithZeroMaxStamina_SetsStaminaFractionToZero()
-        {
-            // Arrange
-            var mockNeuralNetwork = new Mock<INeuralNetwork>();
-            mockNeuralNetwork.Setup(nn => nn.GetOutputs()).Returns(new double[] { 0.5, 0.5 });
-
-            var smartObject = new SmartObject();
-            smartObject.NNetwork = mockNeuralNetwork.Object;
-            double originalMaxStamina = SmartObject.MaxStamina;
-            SmartObject.MaxStamina = 0;
-            smartObject.Stamina = 100.0;
-            double[] inputs = new double[5];
-
-            // Act
-            smartObject.Act(inputs);
-
-            // Assert
-            Assert.AreEqual(0.0, smartObject.LastSpeed);
-
-            // Cleanup
-            SmartObject.MaxStamina = originalMaxStamina;
-        }
-
-        [TestMethod]
-        public void Act_WithFullStamina_MovesAtFullSpeed()
+        public void Act_WithOutputs_MovesObject()
         {
             // Arrange
             var mockNeuralNetwork = new Mock<INeuralNetwork>();
@@ -440,19 +425,15 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             var smartObject = new SmartObject();
             smartObject.NNetwork = mockNeuralNetwork.Object;
-            double originalMaxStamina = SmartObject.MaxStamina;
-            SmartObject.MaxStamina = 200;
-            smartObject.Stamina = 200.0;
+            double originalY = smartObject.Location.Y;
             double[] inputs = new double[5];
 
             // Act
             smartObject.Act(inputs);
 
             // Assert
-            Assert.IsGreaterThan(smartObject.LastSpeed, 0.0);
-
-            // Cleanup
-            SmartObject.MaxStamina = originalMaxStamina;
+            Assert.AreNotEqual(originalY, smartObject.Location.Y);
+            Assert.AreEqual(1.0, smartObject.LastSpeed);
         }
 
         [TestMethod]

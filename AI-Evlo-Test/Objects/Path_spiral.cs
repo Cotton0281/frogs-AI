@@ -11,7 +11,7 @@ namespace AI_Evlo_Test.Objects
     /// <summary>
     /// Describes the movement of object
     /// </summary>
-    public class trajectory
+    public class Trajectory
     {
         public virtual Point GetNextLocation(Point LastLocation)
         {
@@ -19,7 +19,7 @@ namespace AI_Evlo_Test.Objects
         }
     }
     // Calculate trajectory of an object in a spiral
-    public class Path_spiral : trajectory
+    public class Path_spiral : Trajectory
     {
         public Point SpiralCenter = new Point(100, 100);
         public bool ClockwiseDirection = true;

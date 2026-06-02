@@ -4,14 +4,14 @@ using CoordinatesUtil;
 
 namespace AI_Evlo_WPF.UnitTests.Objects
 {
-    [TestClass]
+    [STATestClass]
     public class Path_spiralTests
     {
         [TestMethod]
         public void GetNextLocation_ReturnsLastLocation_WhenCalledOnBaseTrajectory()
         {
             // Arrange
-            var trajectory = new trajectory();
+            var trajectory = new Trajectory();
             var lastLocation = new Point(100, 200);
 
             // Act
@@ -40,7 +40,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             // Assert
             var distanceAfter = Point.Subtract(spiral.SpiralCenter, result).Length;
             // Result should be closer to center than before
-            Assert.IsLessThan(distanceAfter, distanceBefore);
+            Assert.IsLessThan(distanceBefore, distanceAfter);
         }
 
         [TestMethod]
@@ -126,7 +126,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Assert.AreNotEqual(lastLocation, result);
             // Movement should have occurred
             var movement = Point.Subtract(result, lastLocation);
-            Assert.IsGreaterThan(movement.Length, 0.0);
+            Assert.IsGreaterThan(0.0, movement.Length);
         }
 
         [TestMethod]
@@ -201,7 +201,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             spiral.GetNextLocation(lastLocation);
 
             // Assert
-            Assert.IsGreaterThan(spiral.SpiralingAngle, 0.0);
+            Assert.IsGreaterThan(0.0, spiral.SpiralingAngle);
         }
 
         [TestMethod]
@@ -225,7 +225,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             spiral.GetNextLocation(lastLocation);
 
             // Assert
-            Assert.IsLessThan(spiral.SpiralingAngle, 0.0);
+            Assert.IsLessThan(0.0, spiral.SpiralingAngle);
         }
 
         [TestMethod]
@@ -250,7 +250,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             // Assert
             // The rotation should follow clockwise rules
             var movement = Point.Subtract(result, lastLocation);
-            Assert.IsGreaterThan(movement.Length, 0.0);
+            Assert.IsGreaterThan(0.0, movement.Length);
         }
 
         [TestMethod]
@@ -274,7 +274,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             // Assert
             var movement = Point.Subtract(result, lastLocation);
-            Assert.IsGreaterThan(movement.Length, 0.0);
+            Assert.IsGreaterThan(0.0, movement.Length);
         }
 
         [TestMethod]
@@ -383,7 +383,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             // Assert
             // SpiralingAngle should be made positive when expanding
-            Assert.IsGreaterThan(spiral.SpiralingAngle, 0.0);
+            Assert.IsGreaterThan(0.0, spiral.SpiralingAngle);
             Assert.AreEqual(15, spiral.SpiralingAngle, 0.01);
         }
 
@@ -409,7 +409,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             // Assert
             // SpiralingAngle should be made negative when not expanding
-            Assert.IsLessThan(spiral.SpiralingAngle, 0.0);
+            Assert.IsLessThan(0.0, spiral.SpiralingAngle);
             Assert.AreEqual(-15, spiral.SpiralingAngle, 0.01);
         }
 
@@ -500,7 +500,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             var distanceBefore = Point.Subtract(spiral.SpiralCenter, lastLocation).Length;
             var distanceAfter = Point.Subtract(spiral.SpiralCenter, result).Length;
             // Verify result is closer to center
-            Assert.IsLessThan(distanceAfter, distanceBefore);
+            Assert.IsLessThan(distanceBefore, distanceAfter);
         }
 
         [TestMethod]

@@ -34,6 +34,14 @@ namespace AI_Evlo_Test.Objects
         public override List<ISmartObject> Members { get; set; } = new List<ISmartObject>();
         public PopulationBeing Being { get; set; } = PopulationBeing.Frog;
 
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Runtime.Serialization.IgnoreDataMember]
+        public DateTime NextRegrowAt { get; set; } = DateTime.MinValue;
+
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Runtime.Serialization.IgnoreDataMember]
+        public int RegrowModeIndex { get; set; } = 0;
+
         // Runtime-only: a System.Type does not round-trip through JSON cleanly.
         // It is rebuilt from Being after load.
         [Newtonsoft.Json.JsonIgnore]
@@ -185,6 +193,140 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         public int Generation { get; set; }
         public int Ofsprings { get; set; }
+    }
+
+    public enum RegrowthBrainSourceKind
+    {
+        ArchivedBestExact,
+        ArchivedBestMutated,
+        AliveBestExact,
+        AliveBestMutated,
+        Random
+    }
+
+    public sealed class RegrowthBrainSource
+    {
+        public RegrowthBrainSourceKind Kind { get; }
+        public ISmartObject AliveParent { get; }
+        public GenomeRecord ArchivedParent { get; }
+
+        private RegrowthBrainSource(RegrowthBrainSourceKind kind, ISmartObject aliveParent, GenomeRecord archivedParent)
+        {
+            Kind = kind;
+            AliveParent = aliveParent;
+            ArchivedParent = archivedParent;
+        }
+
+        public static RegrowthBrainSource Random()
+        {
+            return new RegrowthBrainSource(RegrowthBrainSourceKind.Random, null, null);
+        }
+
+        public static RegrowthBrainSource Alive(RegrowthBrainSourceKind kind, ISmartObject parent)
+        {
+            return parent == null
+                ? Random()
+                : new RegrowthBrainSource(kind, parent, null);
+        }
+
+        public static RegrowthBrainSource Archived(RegrowthBrainSourceKind kind, GenomeRecord parent)
+        {
+            return parent == null || parent.Gene == null
+                ? Random()
+                : new RegrowthBrainSource(kind, null, parent);
+        }
+    }
+
+    public static class PopulationRegrowthPolicy
+    {
+        private const int ModeCount = 5;
+        private static readonly TimeSpan SpawnInterval = TimeSpan.FromSeconds(1);
+
+        public static bool ShouldSpawn(Population population, DateTime now)
+        {
+            return NeedsRegrowth(population)
+                && population.NextRegrowAt != DateTime.MinValue
+                && now >= population.NextRegrowAt;
+        }
+
+        public static bool NeedsRegrowth(Population population)
+        {
+            return population != null
+                && population.Members != null
+                && population.SizeLimit > population.Members.Count;
+        }
+
+        public static void ScheduleNextSpawn(Population population, DateTime now)
+        {
+            population.NextRegrowAt = now.Add(SpawnInterval);
+        }
+
+        public static void MarkSpawned(Population population, DateTime now)
+        {
+            ScheduleNextSpawn(population, now);
+            population.RegrowModeIndex = (population.RegrowModeIndex + 1) % ModeCount;
+        }
+
+        public static void ClearSchedule(Population population)
+        {
+            population.NextRegrowAt = DateTime.MinValue;
+        }
+
+        public static RegrowthBrainSource SelectSource(Population population)
+        {
+            if (population == null)
+                return RegrowthBrainSource.Random();
+
+            int mode = population.RegrowModeIndex % ModeCount;
+            if (mode < 0)
+                mode += ModeCount;
+
+            switch (mode)
+            {
+                case 0:
+                    return BestOverall(population, mutate: false);
+                case 1:
+                    return BestOverall(population, mutate: true);
+                case 2:
+                    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestExact, BestAlive(population));
+                case 3:
+                    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestMutated, BestAlive(population));
+                default:
+                    return RegrowthBrainSource.Random();
+            }
+        }
+
+        private static RegrowthBrainSource BestOverall(Population population, bool mutate)
+        {
+            ISmartObject alive = BestAlive(population);
+            GenomeRecord archived = BestArchived(population);
+
+            bool useAlive = alive != null && (archived == null || alive.Fitness >= archived.Fitness);
+            if (useAlive)
+                return RegrowthBrainSource.Alive(
+                    mutate ? RegrowthBrainSourceKind.AliveBestMutated : RegrowthBrainSourceKind.AliveBestExact,
+                    alive);
+
+            return RegrowthBrainSource.Archived(
+                mutate ? RegrowthBrainSourceKind.ArchivedBestMutated : RegrowthBrainSourceKind.ArchivedBestExact,
+                archived);
+        }
+
+        private static ISmartObject BestAlive(Population population)
+        {
+            return population.Members?
+                .Where(member => member != null && member.NNetwork != null)
+                .OrderByDescending(member => member.Fitness)
+                .FirstOrDefault();
+        }
+
+        private static GenomeRecord BestArchived(Population population)
+        {
+            return population.lsBestGenes?
+                .Where(record => record != null && record.Gene != null)
+                .OrderByDescending(record => record.Fitness)
+                .FirstOrDefault();
+        }
     }
 
     //public class ViewModelPopulation : INotifyPropertyChanged

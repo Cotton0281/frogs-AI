@@ -24,12 +24,9 @@ namespace AI_Evlo_Test.Objects
         private const int FlightFramesPerAnimation = 4;
 
         public const double FlightHpDrain = 0.45;
-        public const double LandedHpDrain = 0.08;
-        public const double HuntHpGain = 200;
-        public const double HuntRange = 10; // decreased from 34
+        public const double LandedHpDrain = FlightHpDrain / 5.0;
+        public const double HuntRange = 34;
 
-        /// <summary>Birds move 1.3× the base agent speed — a slight edge over frogs.</summary>
-        public const double SpeedMultiplier = 1.3;
         public static int BirdMaxHp => MaxHp * 5;
 
         /// <summary>Birds can only hunt when HP is below this fraction of BirdMaxHp (≤70%).</summary>
@@ -45,11 +42,10 @@ namespace AI_Evlo_Test.Objects
         public override ObjectCategory SenseCategory => IsLanded ? ObjectCategory.Bird_Landed : ObjectCategory.Bird;
 
         /// <summary>
-        /// Birds see rafts and frogs only — their vision is not obstructed by other birds
-        /// or by sharks (which swim below the water).
+        /// Birds can see rafts, frogs, and sharks. Other birds do not obstruct bird vision.
         /// </summary>
         private static readonly ObjectCategory[] BirdIgnored =
-            { ObjectCategory.Bird, ObjectCategory.Bird_Landed, ObjectCategory.Shark };
+            { ObjectCategory.Bird, ObjectCategory.Bird_Landed };
         public override ObjectCategory[] IgnoredCategories => BirdIgnored;
 
         public override ImageSource GetSpriteFrame() => GetNextSpriteFrame();
@@ -77,12 +73,12 @@ namespace AI_Evlo_Test.Objects
             IsGettingHP = false;
             HP -= IsLanded ? LandedHpDrain : FlightHpDrain;
 
-            if (IsLanded && IsHungry)
-                ctx.LandedHungryBirds.Add(Tuple.Create(this, landedRaft));
+            if (IsHungry)
+                ctx.HungryBirds.Add(this);
         }
 
-        /// <summary>Number of frogs this bird has eaten.</summary>
-        public int FrogsEaten { get; set; }
+        /// <summary>Number of sharks this bird has eaten.</summary>
+        public int SharksEaten { get; set; }
 
         public bool IsLanded { get; set; }
 

@@ -21,18 +21,17 @@ namespace AI_Evlo_Test
             //Target move
             MoveTarget();
 
-            if (lsObjects == null || lsObjects.Count == 0)
-                return;
+            if (lsObjects != null && lsObjects.Count > 0)
+            {
+                if (eEnvironmentType == EEnvironmentType.OneTarget)
+                    MoveAgentsEnvirnoment1();
+                else if (eEnvironmentType == EEnvironmentType.TwoTargets)
+                    MoveAgentsEnvirnoment2();
+            }
 
-            if (eEnvironmentType == EEnvironmentType.OneTarget)
-                MoveAgentsEnvirnoment1();
-            else if (eEnvironmentType == EEnvironmentType.TwoTargets)
-                MoveAgentsEnvirnoment2();
 
-
-            // New GENRATiON
-            ///Remove low quality and repopulate with 20% above population size
-            int totalObj = lsObjects.Count;
+            // Remove dead agents, then gradually regrow depleted populations one member at a time.
+            int totalObj = lsObjects?.Count ?? 0;
 
             // remove the unsuccessful by looping backwards
             for (int i = totalObj - 1; i >= 0; i--)
@@ -78,7 +77,7 @@ namespace AI_Evlo_Test
                 { ID = ObjectsIdCounter++.ToString(), Size = dblTargetSize });
             }
 
-            if (targLocation == null || (targLocation.X == 0 && targLocation.Y == 0))
+            if (targLocation.X == 0 && targLocation.Y == 0)
             {
                 targLocation = new Point(panlUniverseView.ActualWidth / 2, panlUniverseView.ActualHeight / 2);
             }
@@ -130,10 +129,9 @@ namespace AI_Evlo_Test
                 // Each species declares what it can and cannot perceive
                 smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
 
-                // Build NN inputs: 2 scalars (HP deficit, stamina deficit) + 24 ray signals = 26
+                // Build NN inputs: 1 scalar (HP deficit) + 24 ray signals = 25
                 double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
-                double staminaDeficit = 1.0 - (smartObject.Stamina / SmartObject.MaxStamina);
-                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit, staminaDeficit);
+                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit);
 
                 smartObject.Act(smart.CachedInputs);
 
@@ -189,10 +187,9 @@ namespace AI_Evlo_Test
                 // Each species declares what it can and cannot perceive
                 smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
 
-                // Build NN inputs: 2 scalars (HP deficit, stamina deficit) + 24 ray signals = 26
+                // Build NN inputs: 1 scalar (HP deficit) + 24 ray signals = 25
                 double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
-                double staminaDeficit = 1.0 - (smartObject.Stamina / SmartObject.MaxStamina);
-                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit, staminaDeficit);
+                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit);
 
                 smartObject.Act(smart.CachedInputs);
             });
@@ -355,13 +352,31 @@ namespace AI_Evlo_Test
                 {
                     if (member is SmartObject smart)
                     {
-                        smart.Category = smart.SenseCategory;
+                        smart.Category = smart is Frog && IsOnAnyRaft(smart)
+                            ? ObjectCategory.Frog_OnRaft
+                            : smart.SenseCategory;
                         _sensableSnapshot.Add(smart);
                     }
                 }
             }
 
             return _sensableSnapshot;
+        }
+
+        private bool IsOnAnyRaft(SmartObject smart)
+        {
+            if (eEnvironmentType != EEnvironmentType.TwoTargets)
+                return false;
+
+            foreach (TargetObj raft in Targets)
+            {
+                double raftRadius = raft.Size / 2D;
+                Vector toRaft = Point.Subtract(raft.Location, smart.Location);
+                if (toRaft.LengthSquared <= raftRadius * raftRadius)
+                    return true;
+            }
+
+            return false;
         }
 
         private ISmartObject GetTopFitnessObject()
@@ -437,7 +452,7 @@ namespace AI_Evlo_Test
             return FrogSheetCache.Frame(0);
         }
 
-        /// <summary>Updates the live HP/stamina bars and title text for the selected agent.</summary>
+        /// <summary>Updates the live HP bar and title text for the selected agent.</summary>
         private void UpdateSelectedAgentStats()
         {
             if (SelectedObject == null || SelectedObject.HP <= 0 || !(SelectedObject is SmartObject smart))
@@ -446,29 +461,22 @@ namespace AI_Evlo_Test
                 lblSelectedSub.Text = "click an agent to inspect it";
                 pbSelectedHP.Value = 0;
                 lblSelectedHP.Text = "";
-                pbSelectedStamina.Value = 0;
-                lblSelectedStamina.Text = "";
                 return;
             }
 
             int maxHp = smart.EffectiveMaxHp;
             double hpPct = maxHp > 0 ? SelectedObject.HP / maxHp * 100.0 : 0;
-            double staPct = SmartObject.MaxStamina > 0 ? SelectedObject.Stamina / SmartObject.MaxStamina * 100.0 : 0;
             hpPct = Math.Max(0, Math.Min(100, hpPct));
-            staPct = Math.Max(0, Math.Min(100, staPct));
 
             lblSelectedTitle.Text = $"{GetObjectKindName(SelectedObject)} {SelectedObject.ID}";
             string sub = $"Gen {SelectedObject.Generation} · lived {SelectedObject.Cycles} cycles";
-            if (SelectedObject is Bird b) sub += $" · ate {b.FrogsEaten}";
+            if (SelectedObject is Bird b) sub += $" · ate {b.SharksEaten}";
             else if (SelectedObject is Shark s) sub += $" · ate {s.FrogsEaten}";
             lblSelectedSub.Text = sub;
 
             pbSelectedHP.Value = hpPct;
             pbSelectedHP.Foreground = HpBrush(hpPct);
             lblSelectedHP.Text = $"{(int)SelectedObject.HP}/{maxHp}";
-
-            pbSelectedStamina.Value = staPct;
-            lblSelectedStamina.Text = $"{(int)staPct}%";
         }
 
         /// <summary>Sets the species icon and rebuilds the brain (neural-net) bar viz. Call on selection change.</summary>
@@ -566,7 +574,6 @@ namespace AI_Evlo_Test
                 int genMin = int.MaxValue;
                 int genMax = int.MinValue;
                 double totalFitness = 0;
-                double totalStamina = 0;
 
                 for (int memberIndex = 0; memberIndex < pop.Members.Count; memberIndex++)
                 {
@@ -580,12 +587,10 @@ namespace AI_Evlo_Test
                         genMax = member.Generation;
 
                     totalFitness += member.Fitness;
-                    totalStamina += member.Stamina;
                 }
 
                 int lostMembers = pop.TotalMembersCount - liveMembers;
                 int avgFitness = (int)(totalFitness / pop.Members.Count);
-                int avgStamina = (int)(totalStamina / pop.Members.Count);
 
                 if (i >= lsPopuCards.Count)
                     continue;
@@ -598,13 +603,13 @@ namespace AI_Evlo_Test
                     : "";
                 card.Stats.Text =
                     $"{liveMembers} alive / {lostMembers} lost  ·  Gen {genMin}–{genMax}" + Environment.NewLine +
-                    $"avg fitness {avgFitness}  ·  avg stamina {avgStamina}{genes}";
+                    $"avg fitness {avgFitness}{genes}";
 
                 string tip =
                     $"Population '{pop.Name}' ({GetPopulationBeingName(pop.Being)})" + Environment.NewLine +
                     $"Live agents: {liveMembers}  |  Lost agents: {lostMembers}" + Environment.NewLine +
                     $"Generations with surviving agents: {genMin} to {genMax}" + Environment.NewLine +
-                    $"Average fitness: {avgFitness}  |  Average stamina: {avgStamina}";
+                    $"Average fitness: {avgFitness}";
                 card.Root.ToolTip = tip;
 
                 if (_selectedPopulation == pop)
@@ -625,7 +630,7 @@ namespace AI_Evlo_Test
             foreach (ISmartObject smartObject in lsObjects)
                 ((SmartObject)smartObject).InteractWithRafts(ctx);
 
-            ResolveBirdHunts(ctx.LandedHungryBirds, ctx.FrogsOnRafts);
+            ResolveBirdHunts(ctx.HungryBirds, ctx.Sharks);
             ResolveSharkHunts(ctx.HungrySharks, ctx.FrogsInWater);
         }
 
@@ -638,6 +643,9 @@ namespace AI_Evlo_Test
 
             foreach (Shark shark in hungrySharks)
             {
+                if (shark.HP <= 0)
+                    continue;
+
                 Frog nearestFrog = null;
                 double nearestDistanceSq = Shark.HuntRange * Shark.HuntRange;
 
@@ -668,46 +676,52 @@ namespace AI_Evlo_Test
                 DisposeObject(frog);
         }
 
-        private void ResolveBirdHunts(List<Tuple<Bird, TargetObj>> landedBirds, List<Tuple<Frog, TargetObj>> frogsOnRafts)
+        private void ResolveBirdHunts(List<Bird> hungryBirds, List<Shark> sharks)
         {
-            HashSet<ISmartObject> frogsToDispose = new HashSet<ISmartObject>();
+            List<Shark> sharksToDispose = ResolveBirdHuntsForTick(hungryBirds, sharks);
+            foreach (ISmartObject shark in sharksToDispose)
+                DisposeObject(shark);
+        }
 
-            foreach (Tuple<Bird, TargetObj> landedBird in landedBirds)
+        internal static List<Shark> ResolveBirdHuntsForTick(List<Bird> hungryBirds, List<Shark> sharks)
+        {
+            List<Shark> sharksToDispose = new List<Shark>();
+            if (hungryBirds.Count == 0 || sharks.Count == 0)
+                return sharksToDispose;
+
+            foreach (Bird bird in hungryBirds)
             {
-                Bird bird = landedBird.Item1;
-
-                // Birds only hunt when hungry (below 90% of max HP)
                 if (!bird.IsHungry)
                     continue;
 
-                TargetObj raft = landedBird.Item2;
-                Frog nearestFrog = null;
-                double nearestDistanceSq = Bird.HuntRange * Bird.HuntRange;
+                Shark nearestShark = null;
+                double nearestDistanceSq = double.MaxValue;
 
-                foreach (Tuple<Frog, TargetObj> frogOnRaft in frogsOnRafts)
+                foreach (Shark shark in sharks)
                 {
-                    if (!ReferenceEquals(frogOnRaft.Item2, raft) || frogsToDispose.Contains(frogOnRaft.Item1))
+                    if (shark.HP <= 0 || sharksToDispose.Contains(shark))
                         continue;
 
-                    Vector distanceVector = Point.Subtract(frogOnRaft.Item1.Location, bird.Location);
+                    Vector distanceVector = Point.Subtract(shark.Location, bird.Location);
                     double distanceSq = distanceVector.LengthSquared;
-                    if (distanceSq > nearestDistanceSq)
+                    double effectiveRange = Bird.HuntRange + (shark.Size / 2D);
+                    if (distanceSq > effectiveRange * effectiveRange || distanceSq > nearestDistanceSq)
                         continue;
 
                     nearestDistanceSq = distanceSq;
-                    nearestFrog = frogOnRaft.Item1;
+                    nearestShark = shark;
                 }
 
-                if (nearestFrog == null)
+                if (nearestShark == null)
                     continue;
 
-                bird.HP += Bird.HuntHpGain;
-                bird.FrogsEaten++;
-                frogsToDispose.Add(nearestFrog);
+                bird.HP += nearestShark.HP;
+                bird.SharksEaten++;
+                nearestShark.HP = 0;
+                sharksToDispose.Add(nearestShark);
             }
 
-            foreach (ISmartObject frog in frogsToDispose)
-                DisposeObject(frog);
+            return sharksToDispose;
         }
 
         private static string GetObjectKindName(ISmartObject smartObject)

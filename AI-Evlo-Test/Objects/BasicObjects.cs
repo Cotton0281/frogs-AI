@@ -19,7 +19,7 @@ namespace AI_Evlo_Test.Objects
         public double Size {get; set; }
         public Vector Intertia = new Vector(0, 0);
         public Vector FaceDirection { get; set; } = new Vector(0, -1);
-        public trajectory Trajectory = new trajectory();
+        public Trajectory Trajectory = new Trajectory();
 
         object objectLock = new Object(); // used to lock the event
         event LocationChanged_Handler IBasicObject.OnLocationChanged

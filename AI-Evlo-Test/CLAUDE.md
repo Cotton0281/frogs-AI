@@ -32,7 +32,7 @@ This is a WPF desktop application that evolves neural-network-driven agents usin
 algorithm. The simulation is an **ecosystem** rendered on a canvas:
 
 - **Frogs** swim in the water and must rest on **rafts** to regain HP; they lose HP in open water.
-- **Birds** are predators that fly, land on rafts, and eat frogs that are sitting on a raft.
+- **Birds** are predators that fly, land on rafts to rest, and eat nearby sharks.
 - **Sharks** are predators that move under water (rendered beneath rafts) and eat frogs in open
   water — but cannot eat frogs that are on a raft.
 
@@ -48,10 +48,10 @@ On first launch the app restores the last saved session, or seeds a default scen
 ```
 IBasicObject → BasicObject (2D location, movement, collision, visual representation)
                     ↓
-             ISmartObject → SmartObject (neural network, fitness, HP, stamina, perception)
+             ISmartObject → SmartObject (neural network, fitness, HP, perception)
                                 ↓
                          Frog  (swimmer, rests on rafts)
-                         Bird  (flying predator, eats frogs on rafts)
+                         Bird  (flying predator, rests on rafts and eats sharks)
                          Shark (underwater predator, eats frogs in open water)
 ```
 
@@ -62,7 +62,7 @@ Species differences are expressed by overriding virtual hooks on `SmartObject`
 - **IBasicObject** (`Objects/BasicObjects.cs`): Location, inertia, face direction, movement,
   circular collision + elastic bounce helpers.
 - **ISmartObject / SmartObject** (`Objects/SmartObject.cs`): Neural-network agent. `Act(double[])`
-  runs inference and drives rotation/thrust; stamina drains with effort and scales movement.
+  runs inference and drives rotation/thrust.
 - **RayPerception** (`Objects/RayPerception.cs`): ego-centric raycasting sensor feeding the NN.
 - **Population** (`Objects/Population.cs`): container managing a group of agents of one
   `PopulationBeing`; archives top performers via `GenomeRecord` (`lsBestGenes`) for re-growth.
@@ -70,8 +70,8 @@ Species differences are expressed by overriding virtual hooks on `SmartObject`
 ### Neural Network System
 
 Configured via `NeuroNetStructure` (`Objects/Configs.cs`) with presets: `Small_1Lx9N()`,
-`Mid_3Lx10N()`, `Big_5Lx20N()`. NN inputs = 2 scalars (HP deficit, stamina deficit) + 12 rays × 2
-(distance + object-type signal) = 26. Outputs = 2 (rotation, thrust).
+`Mid_3Lx10N()`, `Big_5Lx20N()`. NN inputs = 1 scalar (HP deficit) + 12 rays × 2
+(distance + object-type signal) = 25. Outputs = 2 (rotation, thrust).
 
 Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` → `NeuronFactory`
 → `SomaFactory` + `AxonFactory` (Tanh) + `SynapseFactory`.
@@ -83,7 +83,9 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` �
 - Layer-aware indexing (Input/Hidden/Output) via `IndexGene`.
 - Preserves topology, only modifies weights and biases.
 - On death, an agent's genome may be archived in its population's `lsBestGenes`; depleted
-  populations re-grow from that archive (`ReGrowPopulation` in `MainWindow.AgentFactory.cs`).
+  populations re-grow gradually, one member per second, rotating through archived-best,
+  mutated archived-best, live-best, mutated live-best, and random brains (`ReGrowPopulation`
+  in `MainWindow.AgentFactory.cs`).
 
 ### UI Layer (mixed WPF + WinForms)
 
@@ -104,7 +106,6 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` �
 ## Key Dependencies
 
 - **NeuralNetwork 7.4.0** (`ArtificialNeuralNetwork` namespace): neural network engine.
-- **NeuralNetworkVisualizer 1.2.0**: WinForms NN topology visualization control.
 - **Newtonsoft.Json 13.0.x**: population serialization.
 
 ## Code Conventions

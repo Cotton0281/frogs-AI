@@ -38,3 +38,12 @@ Completed tier-2 analytics libraries upgrade. Added net10.0 targeting to Accord.
 
 Completed tier-3 neuro library upgrade. Added net10.0 to Accord.Neuro multi-targeting while preserving existing netstandard compatibility targets. Built Accord.Neuro successfully on net10.0 and revalidated netstandard2.0 build path with upgraded lower-tier dependencies, with no additional tier-local package or API blockers detected.
 
+
+## [2026-06-01 21:35] 07-upgrade-desktop-app-and-tests
+
+Completed WPF app and unit test upgrade to net10.0-windows. Closed the stale `07.01-desktop-package-replacement-strategy` subtask as failed for workflow consistency, then completed the active desktop retarget/package/API/test remediation chain. Removed incompatible neural-network packages, added in-tree compatibility APIs for the app/test surface, added Windows compatibility support, disabled unsupported legacy manifest generation, and remediated desktop/MSTest compatibility issues. Validated the app project build and the unit test suite; 228 tests passed.
+
+
+## [2026-06-01 21:35] 08-final-solution-validation
+
+Completed final validation for the upgraded solution. `dotnet build .\AI-Evlo-WPF.sln -v:minimal -m:1 --no-restore` passed with 0 warnings and 0 errors, and `dotnet test .\AI-Evlo-WPF.UnitTests\AI-Evlo-WPF.UnitTests.csproj -v:minimal` passed with 228 tests. Noted that default parallel solution builds can emit transient Accord shared-output copy warnings, while single-process validation is warning-free.

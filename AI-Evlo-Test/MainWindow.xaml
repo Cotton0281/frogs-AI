@@ -52,18 +52,6 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
                     <TextBlock x:Name="lblSelectedHP" Grid.Column="2" FontSize="10" VerticalAlignment="Center" Margin="5,0,0,0" Text=""/>
                 </Grid>
 
-                <!-- Stamina bar -->
-                <Grid Margin="0,3,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="26"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="66"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="STA" FontSize="10" VerticalAlignment="Center"/>
-                    <ProgressBar x:Name="pbSelectedStamina" Grid.Column="1" Height="13" Minimum="0" Maximum="100" Value="0" Foreground="#FF2196F3" Background="#FFDCE0E6" BorderBrush="#FFBFC6CF"/>
-                    <TextBlock x:Name="lblSelectedStamina" Grid.Column="2" FontSize="10" VerticalAlignment="Center" Margin="5,0,0,0" Text=""/>
-                </Grid>
-
                 <!-- Brain (neural-net) visualization -->
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                     <TextBlock Text="&#x1F9E0;" FontFamily="Segoe UI Emoji" FontSize="15" VerticalAlignment="Center" Margin="0,0,5,0"/>

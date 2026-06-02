@@ -638,7 +638,7 @@ namespace AI_Evlo_Test
             pop.Members.Clear();
             pop.lsBestGenes.Clear(); // old genes are a different topology/species now
 
-            ReGrowPopulation(pop);   // Count == 0 + no genes ⇒ SizeLimit fresh random members
+            FillPopulationImmediate(pop, useArchive: false);
 
             // The previously selected agent may have just been disposed — reselect cleanly.
             if (selectedWasInPop)
@@ -940,14 +940,47 @@ namespace AI_Evlo_Test
         private void RestorePopulation(Population pop)
         {
             pop.ObjectType = GetObjectTypeForBeing(pop.Being);
-            if (pop.NeuroNetTemplate == null)
-                pop.NeuroNetTemplate = NeuroNetStructure.Small_1Lx9N();
+            pop.NeuroNetTemplate = ResolveRestoredNeuroNetTemplate(pop);
             if (pop.Members == null)
                 pop.Members = new List<ISmartObject>();
             pop.Members.Clear();
 
-            ReGrowPopulation(pop);   // recreates members from lsBestGenes (or random if none)
+            FillPopulationImmediate(pop, useArchive: true);
             RegisterPopulation(pop);
+        }
+
+        internal static NeuroNetStructure ResolveRestoredNeuroNetTemplate(Population pop)
+        {
+            NeuroNetStructure restored = NormalizeTemplate(pop?.NeuroNetTemplate);
+            if (restored != null)
+                return restored;
+
+            if (pop?.lsBestGenes != null)
+            {
+                foreach (GenomeRecord record in pop.lsBestGenes)
+                {
+                    NeuroNetStructure inferred = NormalizeTemplate(NeuroNetStructure.FromGene(record?.Gene));
+                    if (inferred != null)
+                        return inferred;
+                }
+            }
+
+            return NeuroNetStructure.Small_1Lx9N();
+        }
+
+        private static NeuroNetStructure NormalizeTemplate(NeuroNetStructure template)
+        {
+            if (template == null)
+                return null;
+
+            if (template.Id == "Small" || (template.HiddenLayers == 1 && template.NeuronsInHiddenLayer == 18))
+                return NeuroNetStructure.Small_1Lx9N();
+            if (template.Id == "Medium" || (template.HiddenLayers == 3 && template.NeuronsInHiddenLayer == 13))
+                return NeuroNetStructure.Mid_3Lx10N();
+            if (template.Id == "Large" || (template.HiddenLayers == 5 && template.NeuronsInHiddenLayer == 20))
+                return NeuroNetStructure.Big_5Lx20N();
+
+            return template;
         }
 
         private void LoadDefaultScenario()
@@ -964,7 +997,7 @@ namespace AI_Evlo_Test
             SeedPopulation(50, "Frogs", "Small", PopulationBeing.Frog);
             SeedPopulation(10, "Birds", "Small", PopulationBeing.Bird);
 
-            Log("Evolution begins now. Frogs must rest on rafts to survive; birds hunt frogs that linger on a raft.");
+            Log("Evolution begins now. Frogs must rest on rafts to survive; sharks hunt frogs in water, and hungry birds hunt sharks.");
             Log("Tip: click any agent to inspect its brain, or use the Populations panel to add a Sharks population.");
             StartSimulation();
         }
