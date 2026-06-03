@@ -29,10 +29,25 @@ namespace AI_Evlo_Test.Objects
 
     public class Population : abstrPopulation<ISmartObject>, IabstrPopulation<ISmartObject>
     {
+        private PopulationBeing being = PopulationBeing.Frog;
+        private double goldenInitialThreshold;
+        private double goldenThreshold;
+
         [Newtonsoft.Json.JsonIgnore]
         [System.Runtime.Serialization.IgnoreDataMember]
         public override List<ISmartObject> Members { get; set; } = new List<ISmartObject>();
-        public PopulationBeing Being { get; set; } = PopulationBeing.Frog;
+        public PopulationBeing Being
+        {
+            get => being;
+            set
+            {
+                if (being == value)
+                    return;
+
+                being = value;
+                goldenInitialThreshold = 0;
+            }
+        }
 
         [Newtonsoft.Json.JsonIgnore]
         [System.Runtime.Serialization.IgnoreDataMember]
@@ -41,6 +56,38 @@ namespace AI_Evlo_Test.Objects
         [Newtonsoft.Json.JsonIgnore]
         [System.Runtime.Serialization.IgnoreDataMember]
         public int RegrowModeIndex { get; set; } = 0;
+
+        public bool GoldenAgentEnabled { get; set; } = true;
+        public NeuralNetworkGene GoldenAgentGene { get; set; }
+        public int GoldenAveragedNetworkCount { get; set; }
+        public int GoldenRecordSurvivorCycles { get; set; }
+
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Runtime.Serialization.IgnoreDataMember]
+        public double GoldenInitialThreshold
+        {
+            get
+            {
+                if (goldenInitialThreshold <= 0)
+                    goldenInitialThreshold = InitialGoldenThresholdFor(Being);
+
+                return goldenInitialThreshold;
+            }
+        }
+
+        public double GoldenThreshold
+        {
+            get
+            {
+                double initial = GoldenInitialThreshold;
+                return goldenThreshold <= 0 ? initial : Math.Max(initial, goldenThreshold);
+            }
+            set => goldenThreshold = value;
+        }
+
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Runtime.Serialization.IgnoreDataMember]
+        public ISmartObject GoldenAgent { get; set; }
 
         // Runtime-only: a System.Type does not round-trip through JSON cleanly.
         // It is rebuilt from Being after load.
@@ -73,6 +120,100 @@ namespace AI_Evlo_Test.Objects
         {
             string jsonObj = Newtonsoft.Json.JsonConvert.SerializeObject(this);
             return jsonObj;
+        }
+
+        public bool TryAverageGoldenBrain(ISmartObject survivor)
+        {
+            if (!ShouldCheckGoldenAverage(survivor))
+                return false;
+
+            SmartObject smart = (SmartObject)survivor;
+            AdvanceGoldenAverageMilestone(smart);
+
+            NeuralNetworkGene survivorGene = survivor.NNetwork.GetGenes();
+            if (GoldenAgentGene == null || GoldenAveragedNetworkCount <= 0)
+            {
+                GoldenAgentGene = Utils.CloneGene(survivorGene);
+                GoldenAveragedNetworkCount = 1;
+                return true;
+            }
+
+            NeuralNetworkGene averaged = Utils.IncrementalAverageGene(
+                GoldenAgentGene,
+                survivorGene,
+                GoldenAveragedNetworkCount);
+
+            if (averaged == null)
+                return false;
+
+            GoldenAgentGene = averaged;
+            GoldenAveragedNetworkCount++;
+            return true;
+        }
+
+        public bool ShouldCheckGoldenAverage(ISmartObject survivor)
+        {
+            if (!GoldenAgentEnabled
+                || survivor == null
+                || ReferenceEquals(survivor, GoldenAgent)
+                || survivor.NNetwork == null
+                || !(survivor is SmartObject smart)
+                || smart.IsGoldenAgent)
+            {
+                return false;
+            }
+
+            UpdateGoldenThresholdFromSurvivor(smart.Cycles);
+
+            if (smart.NextGoldenAverageCycle > 0)
+                return smart.Cycles >= smart.NextGoldenAverageCycle;
+
+            return smart.Cycles >= GoldenThreshold;
+        }
+
+        public void ResetGoldenBrain()
+        {
+            GoldenAgentGene = null;
+            GoldenAveragedNetworkCount = 0;
+            GoldenRecordSurvivorCycles = 0;
+            goldenInitialThreshold = 0;
+            GoldenThreshold = 0;
+        }
+
+        public static double InitialGoldenThresholdFor(PopulationBeing being)
+        {
+            switch (being)
+            {
+                case PopulationBeing.Bird:
+                    return Bird.BirdMaxHp / Bird.FlightHpDrain;
+                case PopulationBeing.Shark:
+                    return Shark.SharkMaxHp / Shark.SwimHpDrain;
+                default:
+                    return SmartObject.MaxHp / SmartObject.BaseHpDrain;
+            }
+        }
+
+        private void UpdateGoldenThresholdFromSurvivor(int survivorCycles)
+        {
+            if (survivorCycles <= GoldenRecordSurvivorCycles)
+                return;
+
+            GoldenRecordSurvivorCycles = survivorCycles;
+            double recordThreshold = survivorCycles / 2.0;
+            if (recordThreshold > GoldenThreshold)
+                GoldenThreshold = recordThreshold;
+        }
+
+        private void AdvanceGoldenAverageMilestone(SmartObject survivor)
+        {
+            if (survivor.NextGoldenAverageCycle <= 0)
+            {
+                survivor.GoldenAverageIntervalTicks = Math.Max(1, (int)Math.Ceiling(GoldenThreshold * 0.1));
+                survivor.NextGoldenAverageCycle = survivor.Cycles + survivor.GoldenAverageIntervalTicks;
+                return;
+            }
+
+            survivor.NextGoldenAverageCycle += Math.Max(1, survivor.GoldenAverageIntervalTicks);
         }
 
     }

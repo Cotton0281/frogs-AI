@@ -31,10 +31,10 @@ rendering host. Treat the current pass count as the regression baseline rather t
 This is a WPF desktop application that evolves neural-network-driven agents using a genetic
 algorithm. The simulation is an **ecosystem** rendered on a canvas:
 
-- **Frogs** swim in the water and must rest on **rafts** to regain HP; they lose HP in open water.
-- **Birds** are predators that fly, land on rafts to rest, and eat nearby sharks.
-- **Sharks** are predators that move under water (rendered beneath rafts) and eat frogs in open
-  water — but cannot eat frogs that are on a raft.
+- **Frogs** swim in the water and must rest on **rafts** to regain HP; hungry frogs bite landed
+  birds on rafts and sharks in water.
+- **Birds** fly, land on rafts to rest, bite sharks while flying, and bite raft frogs while landed.
+- **Sharks** move under water (rendered beneath rafts) and bite water frogs or flying birds when hungry.
 
 On first launch the app restores the last saved session, or seeds a default scenario
 (2 rafts, 50 frogs, 10 birds with random brains) and starts running. Sessions are saved to
@@ -50,9 +50,9 @@ IBasicObject → BasicObject (2D location, movement, collision, visual represent
                     ↓
              ISmartObject → SmartObject (neural network, fitness, HP, perception)
                                 ↓
-                         Frog  (swimmer, rests on rafts)
-                         Bird  (flying predator, rests on rafts and eats sharks)
-                         Shark (underwater predator, eats frogs in open water)
+                         Frog  (swimmer, rests on rafts, bites when hungry)
+                         Bird  (flies, lands on rafts, bites sharks/frogs by state)
+                         Shark (underwater predator, bites flying birds)
 ```
 
 Species differences are expressed by overriding virtual hooks on `SmartObject`
@@ -65,7 +65,9 @@ Species differences are expressed by overriding virtual hooks on `SmartObject`
   runs inference and drives rotation/thrust.
 - **RayPerception** (`Objects/RayPerception.cs`): ego-centric raycasting sensor feeding the NN.
 - **Population** (`Objects/Population.cs`): container managing a group of agents of one
-  `PopulationBeing`; archives top performers via `GenomeRecord` (`lsBestGenes`) for re-growth.
+  `PopulationBeing`; archives top performers via `GenomeRecord` (`lsBestGenes`) for re-growth,
+  and owns optional golden-agent state (`GoldenAgentGene`, `GoldenThreshold`,
+  `GoldenAveragedNetworkCount`).
 
 ### Neural Network System
 
@@ -86,6 +88,12 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` �
   populations re-grow gradually, one member per second, rotating through archived-best,
   mutated archived-best, live-best, mutated live-best, and random brains (`ReGrowPopulation`
   in `MainWindow.AgentFactory.cs`).
+- Each population can also maintain one golden agent. The golden agent is a runtime-only live
+  representative outside `Population.Members`; its brain is a running average of normal agents
+  that pass `GoldenThreshold`. The threshold starts at species max HP divided by base HP drain
+  and rises to half of the population record survivor. Long-lived agents can contribute again
+  every 10% of their own golden contribution interval. Golden agents never average themselves.
+  See `data/GoldenAgent.md`.
 
 ### UI Layer (mixed WPF + WinForms)
 
@@ -100,7 +108,7 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` �
 ### Environment Modes (`EEnvironmentType` in `Objects/Enumerators.cs`)
 
 - `OneTarget`: a single moving "food" target; agents gain HP while on it, lose HP off it.
-- `TwoTargets`: two rafts. Agents rest/regain HP on a raft; if more than half of all agents
+- `TwoTargets`: two rafts. Agents rest/regain HP on a raft; if at least one third of the frog population
   crowd one raft it sinks (stops giving HP) until the crowd thins.
 
 ## Key Dependencies

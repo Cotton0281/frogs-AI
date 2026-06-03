@@ -25,6 +25,8 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Rotation magnitude (degrees) above which the turn animation is shown.</summary>
         private const double TurnAnimationThreshold = 0.6;
         private const int FramesPerAnimation = 4;
+        public const double BiteRange = 26;
+        public const double BiteHp = 5;
 
         public Frog()
         {

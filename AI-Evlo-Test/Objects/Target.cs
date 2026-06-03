@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace AI_Evlo_Test.Objects
 {
@@ -10,7 +11,11 @@ namespace AI_Evlo_Test.Objects
     {
         public double HpCharge = 1;
         public int ObjectsOnTop = 0;
+        public int FrogsOnTop = 0;
         private double underwater = 0;
+
+        public Point PreviousLocation { get; private set; }
+        public Vector MovementDelta { get; private set; }
 
         // --- Raft visual animation state (real-time based) ---
         /// <summary>Current sprite-sheet frame index for the raft float animation.</summary>
@@ -39,6 +44,17 @@ namespace AI_Evlo_Test.Objects
                 else if (value > 100) underwater = 100;
                 else { underwater = value; }
             }
+        }
+
+        public void BeginMovementTick()
+        {
+            PreviousLocation = Location;
+            MovementDelta = new Vector(0, 0);
+        }
+
+        public void CompleteMovementTick()
+        {
+            MovementDelta = Point.Subtract(Location, PreviousLocation);
         }
     }
 }

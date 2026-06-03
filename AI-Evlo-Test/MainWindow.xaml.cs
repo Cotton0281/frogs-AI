@@ -100,6 +100,7 @@ namespace AI_Evlo_Test
         {
 
             InitializeComponent();
+            LoadMovementSettings();
             Clock.Tick += new EventHandler(Clock_Tick);
             Clock.Interval = new TimeSpan(0, 0, 0, 0, (int)sliderSpeed.Value);
             lineToTarget = new Line
@@ -272,6 +273,8 @@ namespace AI_Evlo_Test
             PopulationCard card = BuildPopulationCard(newPopulation);
             StackPnlPopulations.Children.Add(card.Root);
             lsPopuCards.Add(card);
+
+            EnsureGoldenAgent(newPopulation);
         }
 
         /// <summary>Holds the visual elements of one population card so they can be updated cheaply.</summary>
@@ -400,6 +403,13 @@ namespace AI_Evlo_Test
             itemInfo.Click += (s, args) => ShowPopulationListForm(selPopul);
             menu.Items.Add(itemInfo);
 
+            var itemGolden = new System.Windows.Controls.MenuItem
+            {
+                Header = selPopul.GoldenAgentEnabled ? "Disable Golden agent" : "Enable Golden agent"
+            };
+            itemGolden.Click += (s, args) => ToggleGoldenAgent(selPopul);
+            menu.Items.Add(itemGolden);
+
             menu.Items.Add(new System.Windows.Controls.Separator());
 
             var itemDelete = new System.Windows.Controls.MenuItem { Header = "Delete" };
@@ -409,6 +419,21 @@ namespace AI_Evlo_Test
             menu.PlacementTarget = sender as UIElement;
             menu.IsOpen = true;
             e.Handled = true;
+        }
+
+        private void ToggleGoldenAgent(Population population)
+        {
+            if (population == null)
+                return;
+
+            population.GoldenAgentEnabled = !population.GoldenAgentEnabled;
+            if (population.GoldenAgentEnabled)
+                EnsureGoldenAgent(population);
+            else
+                RemoveGoldenAgent(population);
+
+            SaveSession();
+            UpdateLabbels();
         }
 
         private void ShowPopulationListForm(Population population)
@@ -632,13 +657,17 @@ namespace AI_Evlo_Test
         {
             bool selectedWasInPop = SelectedObject != null && pop.Members.Contains(SelectedObject);
 
+            RemoveGoldenAgent(pop);
+
             for (int i = pop.Members.Count - 1; i >= 0; i--)
                 DisposeObject(pop.Members[i]);
 
             pop.Members.Clear();
             pop.lsBestGenes.Clear(); // old genes are a different topology/species now
+            pop.ResetGoldenBrain();
 
             FillPopulationImmediate(pop, useArchive: false);
+            EnsureGoldenAgent(pop);
 
             // The previously selected agent may have just been disposed — reselect cleanly.
             if (selectedWasInPop)
@@ -693,6 +722,8 @@ namespace AI_Evlo_Test
                 return;
 
             int populationIndex = lsPopulations.FindIndex(p => p.ID == _selectedPopulation.ID);
+
+            RemoveGoldenAgent(_selectedPopulation);
 
             for (int i = _selectedPopulation.Members.Count - 1; i > -1; i--)
             {
@@ -757,8 +788,8 @@ namespace AI_Evlo_Test
             else if (eEnvironmentType == EEnvironmentType.TwoTargets)
             {
                 Log("Environment: 'One raft can't take them all'.  Description:");
-                Log("Agents can swim around in the water. They get tired after while and sink. If they go to one of the 2 rafts, they rest and restore HP. HP is restored 4 times faster than it is lost. If more that half of all agents are on one raft, the raft goes under water and agens no longer restore HP there. ");
-                Log(" When less of one half of all agents are on the top of the sunked raft, it comes back to the surfice. ");
+                Log("Agents can swim around in the water. They get tired after while and sink. If they go to one of the 2 rafts, they rest and restore HP. HP is restored 4 times faster than it is lost. If one third of the frog population is on one raft, the raft goes under water and agents no longer restore HP there. ");
+                Log(" When less than one third of the frog population is on the top of the sunked raft, it comes back to the surfice. ");
             }
         }
 
@@ -768,6 +799,21 @@ namespace AI_Evlo_Test
         {
             StopTargets = !StopTargets;
             btnStopTargets.Content = StopTargets ? "Release rafts" : "Anchor rafts";
+        }
+
+        private void BtnMovementSettings_Click(object sender, RoutedEventArgs e)
+        {
+            var settingsWindow = new MovementSettingsWindow(SmartObject.MovementSettings)
+            {
+                Owner = this
+            };
+
+            if (settingsWindow.ShowDialog() == true)
+            {
+                SmartObject.MovementSettings = settingsWindow.Settings;
+                SaveMovementSettings();
+                Log("Simulation parameters saved to " + MovementSettingsFilePath);
+            }
         }
 
         private void ChkHeadless_Changed(object sender, RoutedEventArgs e)
@@ -817,6 +863,7 @@ namespace AI_Evlo_Test
         {
             Clock.Stop();
             Objects.WindowBoundsStore.Save("MainWindow", ActualWidth, ActualHeight);
+            SaveMovementSettings();
             SaveSession();
             lblStatusBar.Content = $"Saved {lsPopulations.Count} population(s).";
         }
@@ -837,6 +884,58 @@ namespace AI_Evlo_Test
         /// <summary>Single file that holds the whole session (the exact set of current populations).</summary>
         private static string SessionFilePath => System.IO.Path.Combine(SaveDirectory, "session.json");
 
+        private static string MovementSettingsFilePath => System.IO.Path.Combine(SaveDirectory, "movement-settings.json");
+
+        private void LoadMovementSettings()
+        {
+            try
+            {
+                SmartObject.MovementSettings = LoadMovementSettingsFromPath(MovementSettingsFilePath);
+            }
+            catch (Exception ex)
+            {
+                SmartObject.MovementSettings = new MovementSettings();
+                Log("Could not load movement settings: " + ex.Message);
+            }
+        }
+
+        private void SaveMovementSettings()
+        {
+            try
+            {
+                SaveMovementSettingsToPath(MovementSettingsFilePath, SmartObject.MovementSettings);
+            }
+            catch (Exception ex)
+            {
+                Log("Could not save movement settings: " + ex.Message);
+            }
+        }
+
+        internal static MovementSettings LoadMovementSettingsFromPath(string filePath)
+        {
+            MovementSettings settings = File.Exists(filePath)
+                ? ReadFromJsonFile<MovementSettings>(filePath)
+                : new MovementSettings();
+
+            if (settings == null)
+                settings = new MovementSettings();
+
+            settings.Normalize();
+            return settings;
+        }
+
+        internal static void SaveMovementSettingsToPath(string filePath, MovementSettings settings)
+        {
+            MovementSettings normalized = (settings ?? new MovementSettings()).Clone();
+            normalized.Normalize();
+
+            string directory = System.IO.Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            WriteToJsonFile(filePath, normalized);
+        }
+
         /// <summary>
         /// Writes the current populations to a single session file. Because it is one file that
         /// mirrors <see cref="lsPopulations"/> exactly, a deleted population can never linger and
@@ -848,14 +947,23 @@ namespace AI_Evlo_Test
             {
                 WriteToJsonFile(SessionFilePath, lsPopulations.ToList());
 
-                // Clean up any legacy per-population GUID files from the old save scheme.
-                foreach (string f in Directory.GetFiles(SaveDirectory, "*.json"))
-                    if (!string.Equals(System.IO.Path.GetFileName(f), "session.json", StringComparison.OrdinalIgnoreCase))
-                        File.Delete(f);
+                CleanupLegacyPopulationFiles(SaveDirectory);
             }
             catch (Exception ex)
             {
                 Log("Could not save session: " + ex.Message);
+            }
+        }
+
+        internal static void CleanupLegacyPopulationFiles(string directory)
+        {
+            foreach (string f in Directory.GetFiles(directory, "*.json"))
+            {
+                string fileName = System.IO.Path.GetFileName(f);
+                bool isCurrentSessionFile = string.Equals(fileName, "session.json", StringComparison.OrdinalIgnoreCase);
+                bool isMovementSettingsFile = string.Equals(fileName, "movement-settings.json", StringComparison.OrdinalIgnoreCase);
+                if (!isCurrentSessionFile && !isMovementSettingsFile)
+                    File.Delete(f);
             }
         }
 
@@ -944,6 +1052,7 @@ namespace AI_Evlo_Test
             if (pop.Members == null)
                 pop.Members = new List<ISmartObject>();
             pop.Members.Clear();
+            pop.GoldenAgent = null;
 
             FillPopulationImmediate(pop, useArchive: true);
             RegisterPopulation(pop);

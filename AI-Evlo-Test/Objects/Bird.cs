@@ -30,13 +30,13 @@ namespace AI_Evlo_Test.Objects
         public static int BirdMaxHp => MaxHp * 5;
 
         /// <summary>Birds can only hunt when HP is below this fraction of BirdMaxHp (≤70%).</summary>
-        public const double HuntHpThreshold = 0.7;
-
-        /// <summary>Returns true when the bird is hungry enough to hunt.</summary>
-        public bool IsHungry => HP < BirdMaxHp * HuntHpThreshold;
+        public const double HuntHpThreshold = MovementSettings.DefaultPredatorBiteHpThreshold;
 
         /// <summary>Birds have 5× the base HP cap.</summary>
         public override int EffectiveMaxHp => BirdMaxHp;
+
+        protected override double MovementSpeedMultiplier =>
+            IsLanded ? (MovementSettings ?? new MovementSettings()).LandedBirdSpeedMultiplier : 1.0;
 
         /// <summary>Birds broadcast as landed or flying so frogs can react accordingly.</summary>
         public override ObjectCategory SenseCategory => IsLanded ? ObjectCategory.Bird_Landed : ObjectCategory.Bird;
@@ -52,10 +52,12 @@ namespace AI_Evlo_Test.Objects
 
         /// <summary>
         /// Birds fly over the water and land on rafts. They ignore raft HP charge, drain HP
-        /// (less when resting), and register as predators when landed, hungry, and on a raft.
+        /// (less when resting), and register as flying or landed hunters when hungry.
         /// </summary>
         public override void InteractWithRafts(RaftTickContext ctx)
         {
+            TickBiteCooldown();
+
             TargetObj landedRaft = null;
             foreach (TargetObj raft in ctx.Rafts)
             {
@@ -73,7 +75,18 @@ namespace AI_Evlo_Test.Objects
             IsGettingHP = false;
             HP -= IsLanded ? LandedHpDrain : FlightHpDrain;
 
-            if (IsHungry)
+            if (IsLanded)
+            {
+                ctx.LandedBirds.Add(this);
+                if (IsHungry)
+                    ctx.HungryLandedBirds.Add(this);
+            }
+            else
+            {
+                ctx.FlyingBirds.Add(this);
+            }
+
+            if (!IsLanded && IsHungry)
                 ctx.HungryBirds.Add(this);
         }
 

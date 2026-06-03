@@ -17,6 +17,8 @@ A living **ecosystem** runs in real time on a canvas, with multiple co-evolving 
 - **[Birds](AI-Evlo-Test/data/Bird.md)** are aerial predators that land on rafts and eat nearby sharks.
 - **[Sharks](AI-Evlo-Test/data/Shark.md)** are underwater predators that eat frogs in open water — but never frogs safe on a raft.
 
+Each population can maintain one **[Golden Agent](AI-Evlo-Test/data/GoldenAgent.md)**: a golden-tinted representative whose brain is the running average of long-lived survivor brains.
+
 Each creature senses its world through **ego-centric raycasting** (whisker-like "vision"), feeds those
 signals into its own neural network, and acts — rotating and thrusting — entirely on its own. Sharks
 pressure frogs in open water while birds pressure sharks from rafts, so there is no single safe strategy; the population has to
@@ -39,6 +41,8 @@ pressure frogs in open water while birds pressure sharks from rafts, so there is
 - Score every agent by a **fitness** value (lifespan vs. reproduction cost).
 - Archive each population's **best genomes** so depleted populations can regrow gradually from a
   rotating mix of archived best, live best, mutated, and random brains.
+- Maintain an optional **golden brain** per population by incrementally averaging the neural networks
+  of agents that exceed that population's dynamic `GoldenThreshold`.
 - **Mutate, compete, rank, repeat** — across generations, fitter brains dominate the gene pool.
 - Inspect any individual live: HP, generation, and a peek at its neural network.
 

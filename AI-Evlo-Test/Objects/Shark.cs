@@ -8,8 +8,8 @@ namespace AI_Evlo_Test.Objects
 {
     /// <summary>
     /// Shark is a predator that moves only under water. It gains no rest from rafts and is
-    /// never counted as "on top" of one. It eats frogs swimming in open water, but cannot
-    /// eat frogs that are sitting on a raft. It must keep hunting or it starves.
+    /// never counted as "on top" of one. Hungry sharks bite water frogs and flying birds,
+    /// while hungry water frogs can bite sharks.
     /// </summary>
     public class Shark : SmartObject, ISmartObject
     {
@@ -33,21 +33,18 @@ namespace AI_Evlo_Test.Objects
         /// <summary>HP lost each tick — sharks must eat to survive.</summary>
         public const double SwimHpDrain = 0.4;
 
-        /// <summary>Sharks can strike a frog within this distance in open water.</summary>
+        /// <summary>Sharks can strike a flying bird within this distance.</summary>
         public const double HuntRange = 26;
 
         /// <summary>Sharks have 5× the base HP cap, like birds.</summary>
         public static int SharkMaxHp => MaxHp * 5;
 
         /// <summary>Sharks only hunt when HP is below this fraction of SharkMaxHp (≤70%).</summary>
-        public const double HuntHpThreshold = 0.7;
-
-        /// <summary>Returns true when the shark is hungry enough to hunt.</summary>
-        public bool IsHungry => HP < SharkMaxHp * HuntHpThreshold;
+        public const double HuntHpThreshold = MovementSettings.DefaultPredatorBiteHpThreshold;
 
         public override int EffectiveMaxHp => SharkMaxHp;
 
-        /// <summary>Number of frogs this shark has eaten.</summary>
+        /// <summary>Legacy counter for older shark/frog hunt stats.</summary>
         public int FrogsEaten { get; set; }
 
         /// <summary>Sharks broadcast as sharks so frogs can learn to avoid them.</summary>
@@ -128,6 +125,7 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         public override void InteractWithRafts(RaftTickContext ctx)
         {
+            TickBiteCooldown();
             IsGettingHP = false;
             HP -= SwimHpDrain;
             ctx.Sharks.Add(this);

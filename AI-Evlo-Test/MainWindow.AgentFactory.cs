@@ -183,6 +183,98 @@ namespace AI_Evlo_Test
                 newObj.ID = population.GenerateMemberId();
         }
 
+        private void EnsureGoldenAgent(Population population)
+        {
+            if (population == null || !population.GoldenAgentEnabled)
+                return;
+
+            if (population.GoldenAgent != null && lsObjects.Contains(population.GoldenAgent))
+                return;
+
+            SpawnGoldenAgent(population);
+        }
+
+        private void SpawnGoldenAgent(Population population)
+        {
+            ISmartObject goldenAgent = CreatePopulationMember(population);
+            if (population.GoldenAgentGene != null)
+                goldenAgent.NNetwork = NeuralNetworkFactory.GetInstance().Create(Utils.CloneGene(population.GoldenAgentGene));
+
+            goldenAgent.ID = population.Name + "::Golden";
+            goldenAgent.ParentId = "Golden";
+            goldenAgent.Generation = population.GoldenAveragedNetworkCount;
+            if (goldenAgent is SmartObject smart)
+                smart.IsGoldenAgent = true;
+
+            ApplyGoldenVisual(goldenAgent);
+            population.GoldenAgent = goldenAgent;
+            lsObjects.Add(goldenAgent);
+        }
+
+        private void RemoveGoldenAgent(Population population)
+        {
+            ISmartObject goldenAgent = population?.GoldenAgent;
+            if (goldenAgent == null)
+                return;
+
+            if (goldenAgent.VisibleShape != null)
+            {
+                goldenAgent.VisibleShape.MouseDown -= ObjectInterface_MouseDown;
+                shapeToObjectMap.Remove(goldenAgent.VisibleShape);
+                panlUniverseView.Children.Remove(goldenAgent.VisibleShape);
+            }
+
+            if (ReferenceEquals(SelectedObject, goldenAgent))
+                SelectedObject = null;
+
+            lsObjects.Remove(goldenAgent);
+            goldenAgent.Dispose();
+            population.GoldenAgent = null;
+        }
+
+        private void RefreshGoldenAgentNetwork(Population population)
+        {
+            if (population?.GoldenAgent == null || population.GoldenAgentGene == null)
+                return;
+
+            population.GoldenAgent.NNetwork = NeuralNetworkFactory.GetInstance().Create(Utils.CloneGene(population.GoldenAgentGene));
+            population.GoldenAgent.Generation = population.GoldenAveragedNetworkCount;
+        }
+
+        private bool TryUpdateGoldenAverage(Population population, ISmartObject source)
+        {
+            if (population == null || source == null || !population.TryAverageGoldenBrain(source))
+                return false;
+
+            RefreshGoldenAgentNetwork(population);
+            return true;
+        }
+
+        private void ApplyGoldenVisual(ISmartObject goldenAgent)
+        {
+            if (goldenAgent?.VisibleShape == null)
+                return;
+
+            goldenAgent.VisibleShape.ToolTip = "Golden agent";
+            if (goldenAgent.VisibleShape is Image image && image.Source != null)
+            {
+                image.Source = GoldenTintCache.GetTinted(image.Source);
+                image.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Gold,
+                    BlurRadius = 8,
+                    ShadowDepth = 0,
+                    Opacity = 0.75
+                };
+            }
+            else if (goldenAgent.VisibleShape is Shape shape)
+            {
+                shape.Fill = Brushes.Gold;
+                shape.Stroke = Brushes.Yellow;
+                shape.StrokeThickness = 2;
+            }
+        }
+
         private SmartObject NewSmartObject2(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             SmartObject newObj = new SmartObject(NeuroNetTemplate, ref randomInit);
@@ -240,7 +332,18 @@ namespace AI_Evlo_Test
 
         private void DisposeObject(ISmartObject obj)
         {
-            if (obj != null)
+            if (obj == null)
+                return;
+
+            Population goldenPopulation = lsPopulations.FirstOrDefault(pop => ReferenceEquals(pop.GoldenAgent, obj));
+            if (goldenPopulation != null)
+            {
+                RemoveGoldenAgent(goldenPopulation);
+                if (goldenPopulation.GoldenAgentEnabled)
+                    EnsureGoldenAgent(goldenPopulation);
+                return;
+            }
+
             {
                 if (obj.VisibleShape != null)
                 {
@@ -256,6 +359,8 @@ namespace AI_Evlo_Test
                 {
                     if (!pop.Members.Contains(obj))
                         continue;
+
+                    TryUpdateGoldenAverage(pop, obj);
 
                     // Use Count*2 instead Size/2 because these are integers. Library of genes is half the population
                     double worstBestFitness = pop.lsBestGenes.Count > 0

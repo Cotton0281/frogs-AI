@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Shark** is an underwater predator agent that inherits from `SmartObject`. Sharks move below the rafts, lose HP continuously, and survive by hunting frogs in open water. Frogs on rafts are safe from sharks. Birds now pressure sharks directly by hunting them from rafts.
+The **Shark** is an underwater predator agent that inherits from `SmartObject`. Sharks move below the rafts, lose HP continuously, and can bite water frogs or flying birds when hungry. Hungry frogs in water can bite sharks, and flying birds can still bite sharks.
 
 ## Stats
 
@@ -11,10 +11,12 @@ The **Shark** is an underwater predator agent that inherits from `SmartObject`. 
 | Size            | 50                             |
 | Max HP          | 5x base MaxHp (1500 default)   |
 | Swim HP Drain   | 0.4 per tick                   |
-| Hunt HP Gain    | HP from the eaten frog         |
-| Hunt Range      | 26 units                       |
-| Hunt Threshold  | Hunts only when HP < 70% max   |
-| Frogs Eaten     | Per-shark counter, shown in UI |
+| Frog Bite Gain  | Up to the configured bite amount, 100 HP by default |
+| Bird Bite Gain  | Up to 30 HP per bird bite      |
+| Bite Range      | 26 units + target body radius  |
+| Hunt Threshold  | Bites only when HP is below the shared hunger threshold |
+| Frogs Eaten     | Legacy counter                 |
+| GoldenThreshold | `SharkMaxHp / 0.4` (3750 cycles default) |
 
 ## Behaviour
 
@@ -41,15 +43,16 @@ Neural network inputs: 1 scalar HP deficit + 24 ray signals = 25 inputs.
 - Sharks drain 0.4 HP per tick.
 - Sharks die when HP reaches 0.
 
-### Hunting
+### Biting
 
-A shark eats a frog when:
+A shark bites the nearest valid target when:
 
-1. The shark is hungry: HP is below 70% of `SharkMaxHp`.
-2. A frog is in open water, touching no raft.
-3. The frog is within the shark hunt range.
+1. The shark is hungry: HP is below the shared hunger threshold.
+2. The target is either a frog in water or a flying bird.
+3. The target is within the shark bite range.
+4. The shark is not in bite cooldown.
 
-On a successful hunt the shark gains the eaten frog's remaining HP, increments `FrogsEaten`, plays the bite animation, and the frog is removed. Frogs resting on any raft are never valid shark prey.
+On a successful bite, the target loses HP and the shark gains the same amount. Water frogs use the configured bite amount, 100 HP by default. Flying birds lose up to 30 HP. The target is removed only if HP reaches 0. Sharks do not bite frogs on rafts or landed birds on rafts.
 
 ### Rendering
 
@@ -74,3 +77,4 @@ Sharks evolve through the same genetic algorithm as all agents:
 - When population drops below its size limit, the fittest surviving sharks reproduce through neural-network mutation.
 - Best genes are archived for population restarts.
 - Offspring inherit parent HP and spawn near the parent.
+- The population's optional [Golden Agent](GoldenAgent.md) starts with a `GoldenThreshold` of `SharkMaxHp / 0.4`; qualifying sharks can contribute their neural network to the golden running average.

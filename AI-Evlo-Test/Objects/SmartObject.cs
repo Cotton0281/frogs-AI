@@ -117,6 +117,8 @@ namespace AI_Evlo_Test.Objects
 
         static public int MaxHp { get; set; } = 300;
         public static double MaxSpeed { get; set; } = 1.5;
+        public static MovementSettings MovementSettings { get; set; } = new MovementSettings();
+        public const double BaseHpDrain = 0.35;
 
         /// <summary>Actual movement magnitude from the last tick.</summary>
         public double LastSpeed { get; set; } = 0;
@@ -127,10 +129,25 @@ namespace AI_Evlo_Test.Objects
         public int Cycles { get; set; } = 0;
         public int Generation { get; set; } = 0;
         public int Ofsprings { get; set; } = 0;
+        public bool IsGoldenAgent { get; set; } = false;
+        public int NextGoldenAverageCycle { get; set; } = 0;
+        public int GoldenAverageIntervalTicks { get; set; } = 0;
         public double Fitness { get { return Cycles - Ofsprings; } }
 
         /// <summary>Per-instance HP ceiling. Override in subclasses to raise the cap.</summary>
         public virtual int EffectiveMaxHp => MaxHp;
+
+        /// <summary>Returns true when this agent is hungry enough to bite.</summary>
+        public virtual bool IsHungry =>
+            HP < EffectiveMaxHp * (MovementSettings ?? new MovementSettings()).PredatorBiteHpThreshold;
+
+        public int BiteCooldownTicksRemaining { get; set; }
+
+        public void TickBiteCooldown()
+        {
+            if (BiteCooldownTicksRemaining > 0)
+                BiteCooldownTicksRemaining--;
+        }
 
         /// <summary>
         /// The category this agent broadcasts to other agents' perception rays.
@@ -153,6 +170,8 @@ namespace AI_Evlo_Test.Objects
         /// Overridden by species that animate (Frog, Bird, Shark).
         /// </summary>
         public virtual ImageSource GetSpriteFrame() => null;
+
+        protected virtual double MovementSpeedMultiplier => 1.0;
 
         public double HP
         {
@@ -193,13 +212,37 @@ namespace AI_Evlo_Test.Objects
 
             double rotationRequest = dblOutputs[0] * 3;
             double thrustRequest = dblOutputs[1] + 0.5;
+            double thrustApplied = ClampThrust(thrustRequest);
 
             this.Rotate(rotationRequest);
-            this.PushForward(thrustRequest);
-            LastSpeed = Math.Abs(thrustRequest);
+            this.PushForward(thrustApplied);
+            LastSpeed = Math.Abs(thrustApplied);
             LastRotation = rotationRequest;
+            ApplyMovementHpCost(rotationRequest, thrustApplied);
 
             return dblOutputs;
+        }
+
+        private double ClampThrust(double thrustRequest)
+        {
+            double maxSpeed = Math.Max(0, MaxSpeed * MovementSpeedMultiplier);
+            if (maxSpeed <= 0)
+                return 0;
+
+            if (thrustRequest > maxSpeed)
+                return maxSpeed;
+            if (thrustRequest < -maxSpeed)
+                return -maxSpeed;
+
+            return thrustRequest;
+        }
+
+        private void ApplyMovementHpCost(double rotationApplied, double thrustApplied)
+        {
+            MovementSettings settings = MovementSettings ?? new MovementSettings();
+            settings.Normalize();
+            HP -= Math.Abs(rotationApplied) * settings.RotationHpCost;
+            HP -= Math.Abs(thrustApplied) * settings.ThrustHpCost;
         }
 
         /// <summary>
@@ -209,6 +252,7 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         public virtual void InteractWithRafts(RaftTickContext ctx)
         {
+            TickBiteCooldown();
             IsGettingHP = false;
             bool onAnyRaft = false;
 
@@ -219,6 +263,13 @@ namespace AI_Evlo_Test.Objects
                 if (toRaft.LengthSquared <= raftRadius * raftRadius)
                 {
                     raft.ObjectsOnTop++;
+                    if (this is Frog)
+                    {
+                        raft.FrogsOnTop++;
+                        Frog raftFrog = (Frog)this;
+                        if (!ctx.FrogsOnRafts.Contains(raftFrog))
+                            ctx.FrogsOnRafts.Add(raftFrog);
+                    }
                     onAnyRaft = true;
                     HP += raft.HpCharge;
                     if (raft.HpCharge > 0)
@@ -229,10 +280,18 @@ namespace AI_Evlo_Test.Objects
             }
 
             // The environment takes HP from all swimmers each tick
-            HP -= 0.35;
+            HP -= BaseHpDrain;
 
             if (!onAnyRaft && this is Frog waterFrog)
+            {
                 ctx.FrogsInWater.Add(waterFrog);
+                if (IsHungry)
+                    ctx.HungryFrogsInWater.Add(waterFrog);
+            }
+            else if (onAnyRaft && this is Frog raftFrog && IsHungry)
+            {
+                ctx.HungryFrogsOnRafts.Add(raftFrog);
+            }
         }
 
         public SmartObject()

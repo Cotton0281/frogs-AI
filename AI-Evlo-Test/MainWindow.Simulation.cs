@@ -31,6 +31,7 @@ namespace AI_Evlo_Test
 
 
             // Remove dead agents, then gradually regrow depleted populations one member at a time.
+            UpdateGoldenAveragesForLiveSurvivors();
             int totalObj = lsObjects?.Count ?? 0;
 
             // remove the unsuccessful by looping backwards
@@ -53,6 +54,19 @@ namespace AI_Evlo_Test
             }
 
             CycleCount++;
+        }
+
+        private void UpdateGoldenAveragesForLiveSurvivors()
+        {
+            foreach (Population population in lsPopulations)
+            {
+                for (int i = 0; i < population.Members.Count; i++)
+                {
+                    ISmartObject member = population.Members[i];
+                    if (member?.HP > 0 && population.ShouldCheckGoldenAverage(member))
+                        TryUpdateGoldenAverage(population, member);
+                }
+            }
         }
 
         private void InitTargets()
@@ -168,7 +182,7 @@ namespace AI_Evlo_Test
                     {
                         ImageSource frame = smart.GetSpriteFrame();
                         if (frame != null)
-                            img.Source = frame;
+                            img.Source = smart.IsGoldenAgent ? GoldenTintCache.GetTinted(frame) : frame;
                     }
 
                     DrawImage(smartObject.VisibleShape, smartObject.Location);
@@ -178,6 +192,8 @@ namespace AI_Evlo_Test
 
         private void MoveAgentsEnvirnoment2()
         {
+            CarryAgentsOnRafts();
+
             IList<ISensable> snapshot = BuildSensableSnapshot();
 
             Parallel.ForEach(lsObjects, smartObject =>
@@ -221,7 +237,7 @@ namespace AI_Evlo_Test
                     {
                         ImageSource frame = smart.GetSpriteFrame();
                         if (frame != null)
-                            img.Source = frame;
+                            img.Source = smart.IsGoldenAgent ? GoldenTintCache.GetTinted(frame) : frame;
                     }
 
                     DrawImage(smartObject.VisibleShape, smartObject.Location);
@@ -231,6 +247,9 @@ namespace AI_Evlo_Test
 
         private void MoveTarget()
         {
+            foreach (TargetObj target in Targets)
+                target.BeginMovementTick();
+
             foreach (TargetObj target in Targets)
             {
                 // Bounce of edges of screen
@@ -269,11 +288,10 @@ namespace AI_Evlo_Test
                 }
 
 
-                int halfPopulationSize = lsPopulations.Sum(p => p.SizeLimit) / 2;
-                if (target.ObjectsOnTop <= halfPopulationSize)
-                    target.Underwater++;
-                else
+                if (ShouldRaftSink(target.FrogsOnTop, lsPopulations))
                     target.Underwater--;
+                else
+                    target.Underwater++;
 
                 if (target.Underwater >= 0)
                 {
@@ -324,6 +342,9 @@ namespace AI_Evlo_Test
                         if (target.VisibleShape != null)
                             DrawImage(target.VisibleShape, target.Location);
             }
+
+            foreach (TargetObj target in Targets)
+                target.CompleteMovementTick();
         }
 
         /// <summary>
@@ -358,6 +379,14 @@ namespace AI_Evlo_Test
                         _sensableSnapshot.Add(smart);
                     }
                 }
+
+                if (pop.GoldenAgent is SmartObject goldenSmart)
+                {
+                    goldenSmart.Category = goldenSmart is Frog && IsOnAnyRaft(goldenSmart)
+                        ? ObjectCategory.Frog_OnRaft
+                        : goldenSmart.SenseCategory;
+                    _sensableSnapshot.Add(goldenSmart);
+                }
             }
 
             return _sensableSnapshot;
@@ -377,6 +406,48 @@ namespace AI_Evlo_Test
             }
 
             return false;
+        }
+
+        private void CarryAgentsOnRafts()
+        {
+            if (eEnvironmentType != EEnvironmentType.TwoTargets)
+                return;
+
+            foreach (ISmartObject smartObject in lsObjects)
+                if (smartObject is SmartObject smart)
+                    ApplyRaftCarryToAgent(smart, Targets);
+        }
+
+        internal static bool ApplyRaftCarryToAgent(SmartObject smart, IEnumerable<TargetObj> rafts)
+        {
+            if (!(smart is Frog) && !(smart is Bird))
+                return false;
+
+            foreach (TargetObj raft in rafts)
+            {
+                double raftRadius = raft.Size / 2D;
+                Vector toPreviousRaftLocation = Point.Subtract(raft.PreviousLocation, smart.Location);
+                if (toPreviousRaftLocation.LengthSquared <= raftRadius * raftRadius)
+                {
+                    smart.MoveTo(raft.MovementDelta);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal static bool ShouldRaftSink(int frogsOnTop, IEnumerable<Population> populations)
+        {
+            int frogPopulationSizeLimit = populations
+                .Where(p => p.Being == PopulationBeing.Frog)
+                .Sum(p => p.SizeLimit);
+
+            if (frogPopulationSizeLimit <= 0)
+                return false;
+
+            int threshold = (int)Math.Ceiling(frogPopulationSizeLimit / 3.0);
+            return frogsOnTop >= threshold;
         }
 
         private ISmartObject GetTopFitnessObject()
@@ -452,6 +523,13 @@ namespace AI_Evlo_Test
             return FrogSheetCache.Frame(0);
         }
 
+        private Population FindPopulationForObject(ISmartObject smartObject)
+        {
+            return lsPopulations.FirstOrDefault(p =>
+                ReferenceEquals(p.GoldenAgent, smartObject) ||
+                (p.Members != null && p.Members.Contains(smartObject)));
+        }
+
         /// <summary>Updates the live HP bar and title text for the selected agent.</summary>
         private void UpdateSelectedAgentStats()
         {
@@ -472,6 +550,12 @@ namespace AI_Evlo_Test
             string sub = $"Gen {SelectedObject.Generation} · lived {SelectedObject.Cycles} cycles";
             if (SelectedObject is Bird b) sub += $" · ate {b.SharksEaten}";
             else if (SelectedObject is Shark s) sub += $" · ate {s.FrogsEaten}";
+            Population selectedPopulation = FindPopulationForObject(SelectedObject);
+            if (smart.IsGoldenAgent && selectedPopulation != null)
+            {
+                sub += $" · golden averages {selectedPopulation.GoldenAveragedNetworkCount}";
+                sub += $" · GoldenThreshold {(int)Math.Ceiling(selectedPopulation.GoldenThreshold)}";
+            }
             lblSelectedSub.Text = sub;
 
             pbSelectedHP.Value = hpPct;
@@ -504,7 +588,7 @@ namespace AI_Evlo_Test
             foreach (var layer in net.HiddenLayers)
                 if (layer.NeuronsInLayer.Count > maxN) maxN = layer.NeuronsInLayer.Count;
 
-            Population pop = lsPopulations.FirstOrDefault(p => p.Members.Contains(SelectedObject));
+            Population pop = FindPopulationForObject(SelectedObject);
             Brush barBrush = pop != null ? pop.PopulationColorBrush : Brushes.MediumPurple;
 
             foreach (var layer in net.HiddenLayers)
@@ -551,7 +635,7 @@ namespace AI_Evlo_Test
             if (Targets.Count > 0)
             {
                 int onTarget = Targets[0].ObjectsOnTop;
-                int alive = lsObjects.Count;
+                int alive = lsObjects.Count(o => !(o is SmartObject smart && smart.IsGoldenAgent));
                 statusText +=
                     $"  |  Agents alive: {alive}  |  Target 1: {onTarget} on top, depth {Targets[0].Underwater:F0}";
             }
@@ -601,15 +685,19 @@ namespace AI_Evlo_Test
                 string genes = pop.lsBestGenes.Count > 0
                     ? $"  ·  top genes {(int)pop.lsBestGenes[pop.lsBestGenes.Count - 1].Fitness}–{(int)pop.lsBestGenes[0].Fitness}"
                     : "";
+                string golden = pop.GoldenAgentEnabled
+                    ? $"  ·  golden {pop.GoldenAveragedNetworkCount} / T{(int)Math.Ceiling(pop.GoldenThreshold)}"
+                    : "  ·  golden off";
                 card.Stats.Text =
                     $"{liveMembers} alive / {lostMembers} lost  ·  Gen {genMin}–{genMax}" + Environment.NewLine +
-                    $"avg fitness {avgFitness}{genes}";
+                    $"avg fitness {avgFitness}{genes}{golden}";
 
                 string tip =
                     $"Population '{pop.Name}' ({GetPopulationBeingName(pop.Being)})" + Environment.NewLine +
                     $"Live agents: {liveMembers}  |  Lost agents: {lostMembers}" + Environment.NewLine +
                     $"Generations with surviving agents: {genMin} to {genMax}" + Environment.NewLine +
-                    $"Average fitness: {avgFitness}";
+                    $"Average fitness: {avgFitness}" + Environment.NewLine +
+                    $"Golden agent: {(pop.GoldenAgentEnabled ? "enabled" : "disabled")}  |  Averaged networks: {pop.GoldenAveragedNetworkCount}  |  GoldenThreshold: {(int)Math.Ceiling(pop.GoldenThreshold)}";
                 card.Root.ToolTip = tip;
 
                 if (_selectedPopulation == pop)
@@ -622,7 +710,11 @@ namespace AI_Evlo_Test
 
         private void ApplyRaftEnvironmentEffects()
         {
-            Targets.ForEach(t => t.ObjectsOnTop = 0);
+            Targets.ForEach(t =>
+            {
+                t.ObjectsOnTop = 0;
+                t.FrogsOnTop = 0;
+            });
 
             RaftTickContext ctx = new RaftTickContext { Rafts = Targets };
 
@@ -630,98 +722,248 @@ namespace AI_Evlo_Test
             foreach (ISmartObject smartObject in lsObjects)
                 ((SmartObject)smartObject).InteractWithRafts(ctx);
 
-            ResolveBirdHunts(ctx.HungryBirds, ctx.Sharks);
-            ResolveSharkHunts(ctx.HungrySharks, ctx.FrogsInWater);
+            DisposeAll(ResolveLandedBirdHuntsForTick(ctx.HungryLandedBirds, ctx.FrogsOnRafts));
+            DisposeAll(ResolveRaftFrogHuntsForTick(ctx.HungryFrogsOnRafts, ctx.LandedBirds));
+            DisposeAll(ResolveWaterFrogHuntsForTick(ctx.HungryFrogsInWater, ctx.Sharks));
+            SharkHuntResult sharkHunts = ResolveSharkHuntsForTick(ctx.HungrySharks, ctx.FrogsInWater, ctx.FlyingBirds);
+            DisposeAll(sharkHunts.FrogsToDispose);
+            DisposeAll(sharkHunts.BirdsToDispose);
+            DisposeAll(ResolveBirdHuntsForTick(ctx.HungryBirds, ctx.Sharks));
         }
 
-        private void ResolveSharkHunts(List<Shark> hungrySharks, List<Frog> frogsInWater)
+        private void DisposeAll<T>(List<T> objectsToDispose)
+            where T : ISmartObject
         {
-            if (hungrySharks.Count == 0 || frogsInWater.Count == 0)
-                return;
+            foreach (ISmartObject obj in objectsToDispose)
+                DisposeObject(obj);
+        }
 
-            HashSet<ISmartObject> frogsToDispose = new HashSet<ISmartObject>();
+        internal static List<Frog> ResolveSharkHuntsForTick(List<Shark> hungrySharks, List<Frog> frogsInWater)
+        {
+            return ResolveBitesForTick(
+                hungrySharks,
+                frogsInWater,
+                CurrentMovementSettings().BiteHpAmount,
+                Shark.HuntRange,
+                shark => shark.IsHungry,
+                frog => true,
+                onBite: (shark, frog) => shark.TriggerBite(),
+                onKill: (shark, frog) => shark.FrogsEaten++);
+        }
+
+        internal static SharkHuntResult ResolveSharkHuntsForTick(
+            List<Shark> hungrySharks,
+            List<Frog> frogsInWater,
+            List<Bird> flyingBirds)
+        {
+            var result = new SharkHuntResult();
+            if (hungrySharks.Count == 0 || (frogsInWater.Count == 0 && flyingBirds.Count == 0))
+                return result;
 
             foreach (Shark shark in hungrySharks)
             {
-                if (shark.HP <= 0)
+                if (shark.HP <= 0 || shark.BiteCooldownTicksRemaining > 0 || !shark.IsHungry)
                     continue;
 
                 Frog nearestFrog = null;
-                double nearestDistanceSq = Shark.HuntRange * Shark.HuntRange;
+                Bird nearestBird = null;
+                double nearestDistanceSq = double.MaxValue;
 
                 foreach (Frog frog in frogsInWater)
                 {
-                    if (frogsToDispose.Contains(frog))
+                    if (frog.HP <= 0 || result.FrogsToDispose.Contains(frog))
                         continue;
 
-                    Vector distanceVector = Point.Subtract(frog.Location, shark.Location);
-                    double distanceSq = distanceVector.LengthSquared;
-                    if (distanceSq > nearestDistanceSq)
-                        continue;
-
-                    nearestDistanceSq = distanceSq;
-                    nearestFrog = frog;
-                }
-
-                if (nearestFrog == null)
-                    continue;
-
-                shark.HP += nearestFrog.HP;
-                shark.FrogsEaten++;
-                shark.TriggerBite();
-                frogsToDispose.Add(nearestFrog);
-            }
-
-            foreach (ISmartObject frog in frogsToDispose)
-                DisposeObject(frog);
-        }
-
-        private void ResolveBirdHunts(List<Bird> hungryBirds, List<Shark> sharks)
-        {
-            List<Shark> sharksToDispose = ResolveBirdHuntsForTick(hungryBirds, sharks);
-            foreach (ISmartObject shark in sharksToDispose)
-                DisposeObject(shark);
-        }
-
-        internal static List<Shark> ResolveBirdHuntsForTick(List<Bird> hungryBirds, List<Shark> sharks)
-        {
-            List<Shark> sharksToDispose = new List<Shark>();
-            if (hungryBirds.Count == 0 || sharks.Count == 0)
-                return sharksToDispose;
-
-            foreach (Bird bird in hungryBirds)
-            {
-                if (!bird.IsHungry)
-                    continue;
-
-                Shark nearestShark = null;
-                double nearestDistanceSq = double.MaxValue;
-
-                foreach (Shark shark in sharks)
-                {
-                    if (shark.HP <= 0 || sharksToDispose.Contains(shark))
-                        continue;
-
-                    Vector distanceVector = Point.Subtract(shark.Location, bird.Location);
-                    double distanceSq = distanceVector.LengthSquared;
-                    double effectiveRange = Bird.HuntRange + (shark.Size / 2D);
+                    double distanceSq = Point.Subtract(frog.Location, shark.Location).LengthSquared;
+                    double effectiveRange = Shark.HuntRange + (frog.Size / 2D);
                     if (distanceSq > effectiveRange * effectiveRange || distanceSq > nearestDistanceSq)
                         continue;
 
                     nearestDistanceSq = distanceSq;
-                    nearestShark = shark;
+                    nearestFrog = frog;
+                    nearestBird = null;
                 }
 
-                if (nearestShark == null)
+                foreach (Bird bird in flyingBirds)
+                {
+                    if (bird.HP <= 0 || bird.IsLanded || result.BirdsToDispose.Contains(bird))
+                        continue;
+
+                    double distanceSq = Point.Subtract(bird.Location, shark.Location).LengthSquared;
+                    double effectiveRange = Shark.HuntRange + (bird.Size / 2D);
+                    if (distanceSq > effectiveRange * effectiveRange || distanceSq > nearestDistanceSq)
+                        continue;
+
+                    nearestDistanceSq = distanceSq;
+                    nearestFrog = null;
+                    nearestBird = bird;
+                }
+
+                if (nearestFrog == null && nearestBird == null)
                     continue;
 
-                bird.HP += nearestShark.HP;
-                bird.SharksEaten++;
-                nearestShark.HP = 0;
-                sharksToDispose.Add(nearestShark);
+                if (nearestFrog != null)
+                {
+                    TransferBiteHp(shark, nearestFrog, CurrentMovementSettings().BiteHpAmount);
+                    if (nearestFrog.HP <= 0)
+                    {
+                        shark.FrogsEaten++;
+                        result.FrogsToDispose.Add(nearestFrog);
+                    }
+                }
+                else
+                {
+                    TransferBiteHp(shark, nearestBird, 30);
+                    if (nearestBird.HP <= 0)
+                        result.BirdsToDispose.Add(nearestBird);
+                }
+
+                shark.BiteCooldownTicksRemaining = CurrentMovementSettings().BiteCooldownTicks;
+                shark.TriggerBite();
             }
 
-            return sharksToDispose;
+            return result;
+        }
+
+        internal static List<Frog> ResolveLandedBirdHuntsForTick(List<Bird> hungryLandedBirds, List<Frog> frogsOnRafts)
+        {
+            return ResolveBitesForTick(
+                hungryLandedBirds,
+                frogsOnRafts,
+                CurrentMovementSettings().BiteHpAmount,
+                Bird.HuntRange,
+                bird => bird.IsLanded && bird.IsHungry,
+                frog => true,
+                onBite: null,
+                onKill: null);
+        }
+
+        internal static List<Bird> ResolveRaftFrogHuntsForTick(List<Frog> hungryFrogsOnRafts, List<Bird> landedBirds)
+        {
+            return ResolveBitesForTick(
+                hungryFrogsOnRafts,
+                landedBirds,
+                Frog.BiteHp,
+                Frog.BiteRange,
+                frog => frog.IsHungry,
+                bird => bird.IsLanded,
+                onBite: null,
+                onKill: null);
+        }
+
+        internal static List<Shark> ResolveWaterFrogHuntsForTick(List<Frog> hungryFrogsInWater, List<Shark> sharks)
+        {
+            return ResolveBitesForTick(
+                hungryFrogsInWater,
+                sharks,
+                Frog.BiteHp,
+                Frog.BiteRange,
+                frog => frog.IsHungry,
+                shark => true,
+                onBite: null,
+                onKill: null);
+        }
+
+        internal static List<Bird> ResolveSharkHuntsForTick(List<Shark> hungrySharks, List<Bird> flyingBirds)
+        {
+            return ResolveBitesForTick(
+                hungrySharks,
+                flyingBirds,
+                30,
+                Shark.HuntRange,
+                shark => shark.IsHungry,
+                bird => !bird.IsLanded,
+                onBite: (shark, bird) => shark.TriggerBite(),
+                onKill: null);
+        }
+
+        internal static List<Shark> ResolveBirdHuntsForTick(List<Bird> hungryBirds, List<Shark> sharks)
+        {
+            return ResolveBitesForTick(
+                hungryBirds,
+                sharks,
+                CurrentMovementSettings().BiteHpAmount,
+                Bird.HuntRange,
+                bird => !bird.IsLanded && bird.IsHungry,
+                shark => true,
+                onBite: null,
+                onKill: (bird, shark) => bird.SharksEaten++);
+        }
+
+        private static List<TPrey> ResolveBitesForTick<TPredator, TPrey>(
+            List<TPredator> predators,
+            List<TPrey> prey,
+            double biteHp,
+            double biteRange,
+            Func<TPredator, bool> canPredatorBite,
+            Func<TPrey, bool> canPreyBeBitten,
+            Action<TPredator, TPrey> onBite,
+            Action<TPredator, TPrey> onKill)
+            where TPredator : SmartObject
+            where TPrey : SmartObject
+        {
+            List<TPrey> preyToDispose = new List<TPrey>();
+            if (predators.Count == 0 || prey.Count == 0)
+                return preyToDispose;
+
+            foreach (TPredator predator in predators)
+            {
+                if (predator.HP <= 0 || predator.BiteCooldownTicksRemaining > 0 || !canPredatorBite(predator))
+                    continue;
+
+                TPrey nearestPrey = null;
+                double nearestDistanceSq = double.MaxValue;
+
+                foreach (TPrey candidate in prey)
+                {
+                    if (candidate.HP <= 0 || preyToDispose.Contains(candidate) || !canPreyBeBitten(candidate))
+                        continue;
+
+                    Vector distanceVector = Point.Subtract(candidate.Location, predator.Location);
+                    double distanceSq = distanceVector.LengthSquared;
+                    double effectiveRange = biteRange + (candidate.Size / 2D);
+                    if (distanceSq > effectiveRange * effectiveRange || distanceSq > nearestDistanceSq)
+                        continue;
+
+                    nearestDistanceSq = distanceSq;
+                    nearestPrey = candidate;
+                }
+
+                if (nearestPrey == null)
+                    continue;
+
+                TransferBiteHp(predator, nearestPrey, biteHp);
+                predator.BiteCooldownTicksRemaining = CurrentMovementSettings().BiteCooldownTicks;
+                onBite?.Invoke(predator, nearestPrey);
+
+                if (nearestPrey.HP <= 0)
+                {
+                    onKill?.Invoke(predator, nearestPrey);
+                    preyToDispose.Add(nearestPrey);
+                }
+            }
+
+            return preyToDispose;
+        }
+
+        private static MovementSettings CurrentMovementSettings()
+        {
+            MovementSettings settings = SmartObject.MovementSettings ?? new MovementSettings();
+            settings.Normalize();
+            return settings;
+        }
+
+        private static void TransferBiteHp(SmartObject predator, SmartObject prey, double biteHp)
+        {
+            double transferredHp = Math.Min(biteHp, prey.HP);
+            prey.HP -= transferredHp;
+            predator.HP += transferredHp;
+        }
+
+        internal sealed class SharkHuntResult
+        {
+            public List<Frog> FrogsToDispose { get; } = new List<Frog>();
+            public List<Bird> BirdsToDispose { get; } = new List<Bird>();
         }
 
         private static string GetObjectKindName(ISmartObject smartObject)

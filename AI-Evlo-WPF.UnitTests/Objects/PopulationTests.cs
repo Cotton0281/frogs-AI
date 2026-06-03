@@ -1,5 +1,7 @@
 ﻿using AI_Evlo_Test.Enumerators;
 using AI_Evlo_Test.Objects;
+using ArtificialNeuralNetwork;
+using ArtificialNeuralNetwork.ActivationFunctions;
 using ArtificialNeuralNetwork.Factories;
 using ArtificialNeuralNetwork.Genes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -362,6 +364,309 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Assert.AreEqual(RegrowthBrainSourceKind.Random, source.Kind);
             Assert.IsNull(source.AliveParent);
             Assert.IsNull(source.ArchivedParent);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_FirstQualifiedSurvivorCopiesNetworkAndSetsCount()
+        {
+            NeuralNetworkGene survivorGene = CreateGoldenTestGene(0.2, 0.4, 0.6);
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(survivorGene))
+            {
+                Cycles = SmartObject.MaxHp * 4 + 1
+            };
+            var population = new Population();
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsTrue(averaged);
+            Assert.AreEqual(1, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(0.2, population.GoldenAgentGene.InputGene.Neurons[0].Axon.Weights[0], 0.000001);
+            Assert.AreEqual(0.4, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Soma.Bias, 0.000001);
+            Assert.AreEqual(0.6, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Axon.Weights[0], 0.000001);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_SecondQualifiedSurvivorIncrementallyAveragesWeightsAndBiases()
+        {
+            var population = new Population
+            {
+                GoldenAgentGene = CreateGoldenTestGene(0.4, 0.6, 0.8),
+                GoldenAveragedNetworkCount = 1
+            };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(0.2, 0.2, 0.4)))
+            {
+                Cycles = SmartObject.MaxHp * 4 + 1
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsTrue(averaged);
+            Assert.AreEqual(2, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(0.3, population.GoldenAgentGene.InputGene.Neurons[0].Axon.Weights[0], 0.000001);
+            Assert.AreEqual(0.4, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Soma.Bias, 0.000001);
+            Assert.AreEqual(0.6, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Axon.Weights[0], 0.000001);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_ThirdQualifiedSurvivorUsesExistingAverageCount()
+        {
+            var population = new Population
+            {
+                GoldenAgentGene = CreateGoldenTestGene(10, 20, 30),
+                GoldenAveragedNetworkCount = 3
+            };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(18, 12, 10)))
+            {
+                Cycles = SmartObject.MaxHp * 4 + 1
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsTrue(averaged);
+            Assert.AreEqual(4, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(12, population.GoldenAgentGene.InputGene.Neurons[0].Axon.Weights[0], 0.000001);
+            Assert.AreEqual(18, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Soma.Bias, 0.000001);
+            Assert.AreEqual(25, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Axon.Weights[0], 0.000001);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_WhenDisabled_DoesNotAverageQualifiedSurvivor()
+        {
+            var population = new Population { GoldenAgentEnabled = false };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = SmartObject.MaxHp * 4 + 1
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsFalse(averaged);
+            Assert.AreEqual(0, population.GoldenAveragedNetworkCount);
+            Assert.IsNull(population.GoldenAgentGene);
+        }
+
+        [TestMethod]
+        public void GoldenThreshold_WhenUnset_UsesPopulationMaxHpDividedByBaseHpDrain()
+        {
+            int originalMaxHp = SmartObject.MaxHp;
+            try
+            {
+                SmartObject.MaxHp = 300;
+                var sharkPopulation = new Population { Being = PopulationBeing.Shark };
+                var birdPopulation = new Population { Being = PopulationBeing.Bird };
+                var frogPopulation = new Population { Being = PopulationBeing.Frog };
+
+                Assert.AreEqual(3750, sharkPopulation.GoldenThreshold, 0.000001);
+                Assert.AreEqual(3333.333333, birdPopulation.GoldenThreshold, 0.000001);
+                Assert.AreEqual(857.142857, frogPopulation.GoldenThreshold, 0.000001);
+            }
+            finally
+            {
+                SmartObject.MaxHp = originalMaxHp;
+            }
+        }
+
+        [TestMethod]
+        public void GoldenThreshold_WhenBeingChangesAfterFirstRead_RecomputesInitialThreshold()
+        {
+            var population = new Population { Being = PopulationBeing.Frog };
+
+            _ = population.GoldenThreshold;
+            population.Being = PopulationBeing.Shark;
+
+            Assert.AreEqual(3750, population.GoldenThreshold, 0.000001);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_WhenSurvivorIsBelowGoldenThreshold_DoesNotAverage()
+        {
+            var population = new Population { Being = PopulationBeing.Shark };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = (int)population.GoldenThreshold - 1
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsFalse(averaged);
+            Assert.AreEqual(0, population.GoldenAveragedNetworkCount);
+            Assert.IsNull(population.GoldenAgentGene);
+        }
+
+        [TestMethod]
+        public void ShouldCheckGoldenAverage_WhenSurvivorIsBelowGoldenThreshold_ReturnsFalse()
+        {
+            var population = new Population { Being = PopulationBeing.Shark };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = (int)population.GoldenThreshold - 1
+            };
+
+            bool shouldCheck = population.ShouldCheckGoldenAverage(survivor);
+
+            Assert.IsFalse(shouldCheck);
+            Assert.AreEqual(survivor.Cycles, population.GoldenRecordSurvivorCycles);
+        }
+
+        [TestMethod]
+        public void ShouldCheckGoldenAverage_WhenSurvivorReachesNextGoldenMilestone_ReturnsTrue()
+        {
+            var population = new Population
+            {
+                GoldenThreshold = 1000
+            };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = 1000
+            };
+
+            Assert.IsTrue(population.ShouldCheckGoldenAverage(survivor));
+            Assert.IsTrue(population.TryAverageGoldenBrain(survivor));
+
+            survivor.Cycles = 1099;
+            Assert.IsFalse(population.ShouldCheckGoldenAverage(survivor));
+
+            survivor.Cycles = 1100;
+            Assert.IsTrue(population.ShouldCheckGoldenAverage(survivor));
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_WhenRecordSurvivorIsHigh_IncreasesGoldenThresholdToHalfRecord()
+        {
+            var population = new Population
+            {
+                Being = PopulationBeing.Shark
+            };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = 20000
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsTrue(averaged);
+            Assert.AreEqual(20000, population.GoldenRecordSurvivorCycles);
+            Assert.AreEqual(10000, population.GoldenThreshold, 0.000001);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_SameSurvivorAveragesAgainAtTenPercentIntervals()
+        {
+            var population = new Population
+            {
+                GoldenThreshold = 1000
+            };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = 1000
+            };
+
+            Assert.IsTrue(population.TryAverageGoldenBrain(survivor));
+            Assert.AreEqual(1, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(1100, survivor.NextGoldenAverageCycle);
+
+            survivor.Cycles = 1099;
+            Assert.IsFalse(population.TryAverageGoldenBrain(survivor));
+            Assert.AreEqual(1, population.GoldenAveragedNetworkCount);
+
+            survivor.Cycles = 1100;
+            Assert.IsTrue(population.TryAverageGoldenBrain(survivor));
+            Assert.AreEqual(2, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(1200, survivor.NextGoldenAverageCycle);
+
+            survivor.Cycles = 1200;
+            Assert.IsTrue(population.TryAverageGoldenBrain(survivor));
+            Assert.AreEqual(3, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(1300, survivor.NextGoldenAverageCycle);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_WhenSurvivorIsGoldenAgent_DoesNotAverageItself()
+        {
+            var golden = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = 50000,
+                IsGoldenAgent = true
+            };
+            var population = new Population
+            {
+                GoldenAgent = golden
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(golden);
+
+            Assert.IsFalse(averaged);
+            Assert.AreEqual(0, population.GoldenAveragedNetworkCount);
+            Assert.IsNull(population.GoldenAgentGene);
+        }
+
+        [TestMethod]
+        public void TryAverageGoldenBrain_WhenTopologyDiffers_DoesNotChangeExistingGoldenAverage()
+        {
+            var population = new Population
+            {
+                GoldenAgentGene = CreateGoldenTestGene(0.4, 0.6, 0.8),
+                GoldenAveragedNetworkCount = 1
+            };
+            INeuralNetwork differentTopology = NeuralNetworkFactory.GetInstance().Create(25, 2, 3, 13);
+            var survivor = new SmartObject(differentTopology)
+            {
+                Cycles = SmartObject.MaxHp * 4 + 1
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsFalse(averaged);
+            Assert.AreEqual(1, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(0.4, population.GoldenAgentGene.InputGene.Neurons[0].Axon.Weights[0], 0.000001);
+        }
+
+        private static NeuralNetworkGene CreateGoldenTestGene(double inputToHiddenWeight, double hiddenBias, double hiddenToOutputWeight)
+        {
+            return new NeuralNetworkGene
+            {
+                InputGene = new LayerGene
+                {
+                    Neurons = new List<NeuronGene>
+                    {
+                        CreateNeuronGene(0, inputToHiddenWeight)
+                    }
+                },
+                HiddenGenes = new List<LayerGene>
+                {
+                    new LayerGene
+                    {
+                        Neurons = new List<NeuronGene>
+                        {
+                            CreateNeuronGene(hiddenBias, hiddenToOutputWeight)
+                        }
+                    }
+                },
+                OutputGene = new LayerGene
+                {
+                    Neurons = new List<NeuronGene>
+                    {
+                        CreateNeuronGene(0)
+                    }
+                }
+            };
+        }
+
+        private static NeuronGene CreateNeuronGene(double bias, params double[] weights)
+        {
+            return new NeuronGene
+            {
+                Soma = new SomaGene
+                {
+                    Bias = bias,
+                    SummationFunction = typeof(SimpleSummation)
+                },
+                Axon = new AxonGene
+                {
+                    ActivationFunction = typeof(TanhActivationFunction),
+                    Weights = new List<double>(weights)
+                }
+            };
         }
     }
 }

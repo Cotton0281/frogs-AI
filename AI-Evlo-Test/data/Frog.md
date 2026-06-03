@@ -13,6 +13,7 @@ The **Frog** is the primary prey and raft-survival agent. Frogs sustain themselv
 | HP Drain         | 0.35 per tick                              |
 | HP Gain on Raft  | +1.0 per tick from active raft `HpCharge`  |
 | Net HP on Raft   | +0.65 per tick                             |
+| GoldenThreshold  | `MaxHp / 0.35` (about 857 cycles default)  |
 
 ## Behaviour
 
@@ -45,15 +46,20 @@ Neural network inputs: 1 scalar HP deficit + 24 ray signals (12 rays x distance 
 
 Frogs contribute to a raft's `ObjectsOnTop` counter when positioned within its radius. This counter drives raft sinking:
 
-- When `ObjectsOnTop` is at or below half the total population size, the raft recovers or stays afloat.
-- When `ObjectsOnTop` is above half the total population size, the raft sinks.
+- When fewer than one third of the frog population is on a raft, the raft recovers or stays afloat.
+- When at least one third of the frog population is on a raft, the raft sinks.
 - A sunk raft stops providing HP charge.
 
 This creates pressure for frogs to spread across rafts rather than crowding onto one.
 
-### Predators
+### Biting
 
-Frogs are hunted by sharks only when they are in open water. A frog on any raft is marked as `Frog_OnRaft`, which sharks ignore in perception and do not consider valid prey. Birds no longer eat frogs.
+Frogs can bite when their HP is below the shared hunger threshold, currently 80% of max HP. Frog bites use the shared bite cooldown and transfer 5 HP from the target to the frog.
+
+- A hungry frog on a raft can bite a landed bird.
+- A hungry frog in water can bite a shark.
+- Frogs do not bite other frogs or flying birds.
+- Sharks can bite frogs in water, but not frogs on rafts. Landed birds can bite raft frogs for the bird bite amount.
 
 ### Sprites
 
@@ -74,3 +80,4 @@ Frogs evolve through the same genetic algorithm as all agents:
 - When population drops below its size limit, the fittest surviving frogs reproduce through neural-network mutation.
 - Best genes are archived for population restarts.
 - Offspring inherit parent HP and spawn near the parent.
+- The population's optional [Golden Agent](GoldenAgent.md) starts with a `GoldenThreshold` of `MaxHp / 0.35`; qualifying frogs can contribute their neural network to the golden running average.
