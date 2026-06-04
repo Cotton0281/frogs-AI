@@ -118,7 +118,7 @@ namespace AI_Evlo_Test.Objects
         static public int MaxHp { get; set; } = 300;
         public static double MaxSpeed { get; set; } = 1.5;
         public static MovementSettings MovementSettings { get; set; } = new MovementSettings();
-        public const double BaseHpDrain = 0.35;
+        public const double BaseHpDrain = 0.2;
 
         /// <summary>Actual movement magnitude from the last tick.</summary>
         public double LastSpeed { get; set; } = 0;

@@ -69,10 +69,10 @@ namespace AI_Evlo_Test
 
         private void ReGrowPopulation(Population objPopulation)
         {
-            TryRegrowPopulation(objPopulation, DateTime.Now);
+            TryRegrowPopulation(objPopulation, CycleCount);
         }
 
-        internal bool TryRegrowPopulation(Population population, DateTime now)
+        internal bool TryRegrowPopulation(Population population, int currentCycle)
         {
             if (!PopulationRegrowthPolicy.NeedsRegrowth(population))
             {
@@ -80,19 +80,19 @@ namespace AI_Evlo_Test
                 return false;
             }
 
-            if (population.NextRegrowAt == DateTime.MinValue)
+            if (population.NextRegrowCycle < 0)
             {
-                PopulationRegrowthPolicy.ScheduleNextSpawn(population, now);
+                PopulationRegrowthPolicy.ScheduleNextSpawn(population, currentCycle);
                 return false;
             }
 
-            if (!PopulationRegrowthPolicy.ShouldSpawn(population, now))
+            if (!PopulationRegrowthPolicy.ShouldSpawn(population, currentCycle))
                 return false;
 
             RegrowthBrainSource source = PopulationRegrowthPolicy.SelectSource(population);
             ISmartObject newObj = CreateRegrowthMember(population, source);
             AddPopulationMember(population, newObj);
-            PopulationRegrowthPolicy.MarkSpawned(population, now);
+            PopulationRegrowthPolicy.MarkSpawned(population, currentCycle);
             if (!PopulationRegrowthPolicy.NeedsRegrowth(population))
                 PopulationRegrowthPolicy.ClearSchedule(population);
 

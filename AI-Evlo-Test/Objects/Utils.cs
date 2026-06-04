@@ -229,7 +229,8 @@ namespace AI_Evlo_Test.Objects
 
         private static double IncrementalAverage(double average, double newValue, int currentCount)
         {
-            return average + (newValue - average) / (currentCount + 1);
+            int cappedCount = Math.Min(currentCount, 100);
+            return average + (newValue - average) / (cappedCount + 1);
         }
     }
 }

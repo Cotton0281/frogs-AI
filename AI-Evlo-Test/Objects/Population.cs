@@ -51,7 +51,7 @@ namespace AI_Evlo_Test.Objects
 
         [Newtonsoft.Json.JsonIgnore]
         [System.Runtime.Serialization.IgnoreDataMember]
-        public DateTime NextRegrowAt { get; set; } = DateTime.MinValue;
+        public int NextRegrowCycle { get; set; } = -1;
 
         [Newtonsoft.Json.JsonIgnore]
         [System.Runtime.Serialization.IgnoreDataMember]
@@ -381,13 +381,12 @@ namespace AI_Evlo_Test.Objects
     public static class PopulationRegrowthPolicy
     {
         private const int ModeCount = 5;
-        private static readonly TimeSpan SpawnInterval = TimeSpan.FromSeconds(1);
 
-        public static bool ShouldSpawn(Population population, DateTime now)
+        public static bool ShouldSpawn(Population population, int currentCycle)
         {
             return NeedsRegrowth(population)
-                && population.NextRegrowAt != DateTime.MinValue
-                && now >= population.NextRegrowAt;
+                && population.NextRegrowCycle >= 0
+                && currentCycle >= population.NextRegrowCycle;
         }
 
         public static bool NeedsRegrowth(Population population)
@@ -397,20 +396,33 @@ namespace AI_Evlo_Test.Objects
                 && population.SizeLimit > population.Members.Count;
         }
 
-        public static void ScheduleNextSpawn(Population population, DateTime now)
+        public static void ScheduleNextSpawn(Population population, int currentCycle)
         {
-            population.NextRegrowAt = now.Add(SpawnInterval);
+            population.NextRegrowCycle = currentCycle + NaturalSurvivalTicksFor(population?.Being ?? PopulationBeing.Frog);
         }
 
-        public static void MarkSpawned(Population population, DateTime now)
+        public static void MarkSpawned(Population population, int currentCycle)
         {
-            ScheduleNextSpawn(population, now);
+            ScheduleNextSpawn(population, currentCycle);
             population.RegrowModeIndex = (population.RegrowModeIndex + 1) % ModeCount;
         }
 
         public static void ClearSchedule(Population population)
         {
-            population.NextRegrowAt = DateTime.MinValue;
+            population.NextRegrowCycle = -1;
+        }
+
+        public static int NaturalSurvivalTicksFor(PopulationBeing being)
+        {
+            switch (being)
+            {
+                case PopulationBeing.Bird:
+                    return (int)Math.Ceiling(Bird.BirdMaxHp / Bird.FlightHpDrain);
+                case PopulationBeing.Shark:
+                    return (int)Math.Ceiling(Shark.SharkMaxHp / Shark.SwimHpDrain);
+                default:
+                    return (int)Math.Ceiling(SmartObject.MaxHp / SmartObject.BaseHpDrain);
+            }
         }
 
         public static RegrowthBrainSource SelectSource(Population population)

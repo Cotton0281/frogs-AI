@@ -76,47 +76,76 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
             <GroupBox.Effect>
                 <DropShadowEffect Opacity="0.2"/>
             </GroupBox.Effect>
-            <Grid>
+            <!-- Editor laid out in real Grid rows/columns (was fragile absolute margins). -->
+            <Grid Margin="4,2,4,2">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="269*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Rectangle x:Name="rectanglePopulationColor" Fill="#FFEDEDED" HorizontalAlignment="Left" Height="35" Margin="1,5,0,0" Stroke="#FFD8D6D6" VerticalAlignment="Top" Width="270" RadiusX="5" RadiusY="5" Opacity="0.65" Grid.ColumnSpan="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Row 0 background strip tinted with the selected population's colour -->
+                <Rectangle x:Name="rectanglePopulationColor" Grid.Row="0" Grid.ColumnSpan="4"
+                           Fill="#FFEDEDED" Stroke="#FFD8D6D6" RadiusX="5" RadiusY="5" Opacity="0.65" Margin="0,2,0,2">
                     <Rectangle.Effect>
                         <DropShadowEffect Opacity="0.2"/>
                     </Rectangle.Effect>
                 </Rectangle>
-                <Label x:Name="lblPopulationName" Content="Name" HorizontalAlignment="Left" Margin="0.8,8,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.152,-0.705" Height="26" Grid.Column="1"/>
-                <ComboBox x:Name="ddlPopulationName" HorizontalAlignment="Left" Margin="46.8,10,0,0" 
-                    VerticalAlignment="Top" Width="134" IsEditable="True" 
-                    ItemsSource="{Binding lsPopulations}" DisplayMemberPath="Name" SelectedValuePath="ID"  
-                    SelectedValue="{Binding SelectedPopulation}" SelectionChanged="DdlPopulationName_SelectionChanged" Height="24" Opacity="0.85" ToolTip="Population name. Quite optional" Grid.Column="1" />
-                <Label x:Name="lblSizePopulation" Content="Size" HorizontalAlignment="Left" Margin="185.8,8,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.152,-0.705" Height="26" ToolTip="Population size: Max numebrs of agents" Grid.Column="1"/>
-                <TextBox x:Name="txtPopulationSize" Height="22" Margin="220.8,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Text="100" TextChanged="TxtCreateObjectsNumber_TextChanged" RenderTransformOrigin="-0.69,0.682" HorizontalAlignment="Left" Width="38" UseLayoutRounding="True" Opacity="0.85" ToolTip="Number of agents in the population" Grid.Column="1"/>
-                <Label x:Name="lblSizePopulation_Copy" Content="Brain" HorizontalAlignment="Left" Margin="2.8,50,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.152,-0.705" Grid.Column="1"/>
-                <ComboBox x:Name="ddlPopulationNeuroNetType" HorizontalAlignment="Left" 
-            Margin="50.8,50,0,0" VerticalAlignment="Top" Width="92" ToolTip="Size of the neural network" Grid.Column="1">
+
+                <!-- Row 0: Name + Size -->
+                <Label x:Name="lblPopulationName" Grid.Row="0" Grid.Column="0" Content="Name" VerticalAlignment="Center" Padding="3,0,3,0"/>
+                <ComboBox x:Name="ddlPopulationName" Grid.Row="0" Grid.Column="1" Margin="0,4,6,4"
+                          VerticalAlignment="Center" Height="24" IsEditable="True" Opacity="0.85"
+                          ItemsSource="{Binding lsPopulations}" DisplayMemberPath="Name" SelectedValuePath="ID"
+                          SelectedValue="{Binding SelectedPopulation}" SelectionChanged="DdlPopulationName_SelectionChanged"
+                          ToolTip="Population name. Quite optional"/>
+                <Label x:Name="lblSizePopulation" Grid.Row="0" Grid.Column="2" Content="Size" VerticalAlignment="Center" Padding="3,0,3,0" ToolTip="Population size: max number of agents"/>
+                <TextBox x:Name="txtPopulationSize" Grid.Row="0" Grid.Column="3" Margin="0,4,2,4" Width="40" Height="22"
+                         VerticalAlignment="Center" VerticalContentAlignment="Center" Text="100"
+                         TextChanged="TxtCreateObjectsNumber_TextChanged" Opacity="0.85"
+                         ToolTip="Number of agents in the population"/>
+
+                <!-- Row 1: Brain + Being -->
+                <Label x:Name="lblSizePopulation_Copy" Grid.Row="1" Grid.Column="0" Content="Brain" VerticalAlignment="Center" Padding="3,0,3,0"/>
+                <ComboBox x:Name="ddlPopulationNeuroNetType" Grid.Row="1" Grid.Column="1" Margin="0,4,6,4"
+                          HorizontalAlignment="Left" Width="92" VerticalAlignment="Center" ToolTip="Size of the neural network">
                     <ListBoxItem Content="Small" IsSelected="True"/>
                     <ListBoxItem Content="Medium"/>
                     <ListBoxItem Content="Large"/>
                 </ComboBox>
-                <Label x:Name="lblPopulationBeing" Content="Being" HorizontalAlignment="Left" Margin="148.8,50,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.152,-0.705" Grid.Column="1"/>
-                <ComboBox x:Name="ddlPopulationBeing" HorizontalAlignment="Left" Margin="190.8,50,0,0" VerticalAlignment="Top" Width="72" ToolTip="Type of the evolving being" Grid.Column="1">
+                <Label x:Name="lblPopulationBeing" Grid.Row="1" Grid.Column="2" Content="Being" VerticalAlignment="Center" Padding="3,0,3,0"/>
+                <ComboBox x:Name="ddlPopulationBeing" Grid.Row="1" Grid.Column="3" Margin="0,4,2,4"
+                          Width="72" VerticalAlignment="Center" ToolTip="Type of the evolving being">
                     <ComboBoxItem Content="Frogs" IsSelected="True"/>
                     <ComboBoxItem Content="Birds"/>
                     <ComboBoxItem Content="Sharks"/>
                 </ComboBox>
-                <Button x:Name="btnPopulationUpdate" Content="Update" HorizontalAlignment="Left" Height="22" Margin="6.8,85,0,0" VerticalAlignment="Top" Width="74" Click="BtnPopulationUpdate_Click" IsEnabled="False" ToolTip="Update selected population" Grid.Column="1"/>
-                <Button x:Name="btnNewObject" Content="Create New" HorizontalAlignment="Left" Height="22" Margin="90.8,85,0,0" VerticalAlignment="Top" Width="81" Click="BtnNewPopulation_Click" ToolTip="Create new population of agents" Grid.Column="1"/>
-                <Label x:Name="lblPopulationInfo" Content="Population:" Margin="0,110,-8,0" VerticalAlignment="Top" RenderTransformOrigin="-1.24,-0.227" Height="48" Width="280" Padding="2,2,3,2" Grid.ColumnSpan="2"/>
+
+                <!-- Row 2: action buttons -->
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="2,4,0,2">
+                    <Button x:Name="btnPopulationUpdate" Content="Update" Width="74" Height="22" Margin="0,0,8,0"
+                            Click="BtnPopulationUpdate_Click" IsEnabled="False" ToolTip="Update selected population"/>
+                    <Button x:Name="btnNewObject" Content="Create New" Width="81" Height="22"
+                            Click="BtnNewPopulation_Click" ToolTip="Create new population of agents"/>
+                </StackPanel>
+
+                <!-- Row 3: live population info -->
+                <Label x:Name="lblPopulationInfo" Grid.Row="3" Grid.ColumnSpan="4" Content="Population:" Padding="2,2,3,2" VerticalAlignment="Top"/>
             </Grid>
         </GroupBox>
 
 
-        <Button x:Name="btnStart" Content="Start" Height="20" Margin="225,50,0,0" VerticalAlignment="Top" Click="BtnStart_Click" HorizontalAlignment="Left" Width="52" ToolTip="Start/Pause experiment"/>
+        <Button x:Name="btnStart" Content="&#x25B6; Start" FontFamily="Segoe UI Symbol" Foreground="White" Background="#FF4CAF50" Height="20" Margin="225,50,0,0" VerticalAlignment="Top" Click="BtnStart_Click" HorizontalAlignment="Left" Width="64" ToolTip="Start/Pause experiment"/>
 
         <Label Content="Speed" HorizontalAlignment="Left" Margin="5,47,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.427,0.523" Height="26" Width="43"/>
-        <Slider x:Name="sliderSpeed" HorizontalAlignment="Left" Margin="54,46,0,0" VerticalAlignment="Top" Width="166" Maximum="98" SmallChange="0" TickFrequency="10" TickPlacement="TopLeft" Value="10" ValueChanged="SliderSpeed_ValueChanged" RenderTransformOrigin="0.5,0.5" Height="23"/>
+        <Slider x:Name="sliderSpeed" HorizontalAlignment="Left" Margin="54,46,0,0" VerticalAlignment="Top" Width="166" Minimum="0" Maximum="100" SmallChange="1" TickFrequency="10" TickPlacement="TopLeft" Value="90" ValueChanged="SliderSpeed_ValueChanged" RenderTransformOrigin="0.5,0.5" Height="23" ToolTip="Simulation speed — left = slow, right = fast"/>
         <Button x:Name="btnClear" Content="Clear Log" Margin="0,0,35,70" Click="BtnClear_Click" HorizontalAlignment="Right" Width="71" Height="20" VerticalAlignment="Bottom" Background="{x:Null}" Foreground="#FF52934F" BorderBrush="#FF224426" Grid.Row="2" Grid.Column="1"/>
 
 
@@ -132,5 +161,52 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
         </ScrollViewer>
         <Button x:Name="btnMovementSettings" Content="Sim Parameters" HorizontalAlignment="Left" Margin="5,0,0,0" Grid.Row="2" VerticalAlignment="Center" Width="108" Height="22" Click="BtnMovementSettings_Click" ToolTip="Configure simulation parameters"/>
         <CheckBox x:Name="chkHeadless" Content="Headless" HorizontalAlignment="Left" Margin="205,0,0,0" Grid.Row="2" VerticalAlignment="Center" Checked="ChkHeadless_Changed" Unchecked="ChkHeadless_Changed" ToolTip="Skip rendering for faster training"/>
+
+        <!-- On-canvas legend / key. Non-interactive so clicks pass through to agents. -->
+        <Border x:Name="legendKey" Panel.ZIndex="20" IsHitTestVisible="False"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                Margin="0,8,14,0" Padding="9,6,11,7" CornerRadius="6"
+                Background="#CC121733" BorderBrush="#40FFFFFF" BorderThickness="1">
+            <StackPanel>
+                <TextBlock Text="Key" Foreground="#FFB9C4EC" FontWeight="Bold" FontSize="11" Margin="0,0,0,5"/>
+                <StackPanel Orientation="Horizontal" Margin="0,1,0,2">
+                    <Ellipse Width="12" Height="12" Fill="Gold" Margin="0,0,7,0" VerticalAlignment="Center">
+                        <Ellipse.Effect>
+                            <DropShadowEffect Color="Gold" BlurRadius="8" ShadowDepth="0" Opacity="0.9"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+                    <TextBlock Text="Golden agent (averaged brain)" Foreground="#FFDCE2F4" FontSize="10" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,1,0,2">
+                    <Ellipse Width="12" Height="12" Fill="#FF4488DD" Opacity="0.3" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Faded = low health" Foreground="#FFDCE2F4" FontSize="10" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,1,0,2">
+                    <Ellipse Width="12" Height="12" Fill="#FF4488DD" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Color = its population" Foreground="#FFDCE2F4" FontSize="10" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
+                    <Ellipse Width="12" Height="12" Fill="#FF3A4570" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Raft sinks when crowded" Foreground="#FFDCE2F4" FontSize="10" VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Live sparkline beside the status bar: agents alive (green) + top fitness (gold). -->
+        <Border x:Name="sparklinePanel" Grid.Row="2" Grid.RowSpan="2" Grid.Column="1"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" Panel.ZIndex="30"
+                Margin="0,0,8,1" Padding="6,2,6,2" CornerRadius="4"
+                Background="#CC121733" BorderBrush="#40FFFFFF" BorderThickness="1"
+                ToolTip="Live history — agents alive (green), top fitness (gold)">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="alive" Foreground="#FF6FCF8E" FontSize="9" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                <TextBlock Text="fit" Foreground="Gold" FontSize="9" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <Canvas x:Name="sparkCanvas" Width="120" Height="22" ClipToBounds="True">
+                    <Polyline x:Name="sparkAlive" Stroke="#FF6FCF8E" StrokeThickness="1.2"/>
+                    <Polyline x:Name="sparkFitness" Stroke="Gold" StrokeThickness="1.2"/>
+                </Canvas>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

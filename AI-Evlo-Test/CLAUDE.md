@@ -85,9 +85,10 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` â
 - Layer-aware indexing (Input/Hidden/Output) via `IndexGene`.
 - Preserves topology, only modifies weights and biases.
 - On death, an agent's genome may be archived in its population's `lsBestGenes`; depleted
-  populations re-grow gradually, one member per second, rotating through archived-best,
-  mutated archived-best, live-best, mutated live-best, and random brains (`ReGrowPopulation`
-  in `MainWindow.AgentFactory.cs`).
+  populations re-grow gradually by simulation ticks, not wall-clock time. Each population
+  spawns one replacement after its natural survival interval (`MaxHp / base HP drain`),
+  rotating through archived-best, mutated archived-best, live-best, mutated live-best, and
+  random brains (`ReGrowPopulation` in `MainWindow.AgentFactory.cs`).
 - Each population can also maintain one golden agent. The golden agent is a runtime-only live
   representative outside `Population.Members`; its brain is a running average of normal agents
   that pass `GoldenThreshold`. The threshold starts at species max HP divided by base HP drain

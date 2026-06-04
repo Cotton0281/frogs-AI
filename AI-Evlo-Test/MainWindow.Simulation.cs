@@ -1,6 +1,9 @@
+using AI_Evlo_Test.Enumerators;
+using AI_Evlo_Test.Objects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Intrinsics.X86;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -8,8 +11,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
-using AI_Evlo_Test.Objects;
-using AI_Evlo_Test.Enumerators;
 
 namespace AI_Evlo_Test
 {
@@ -63,10 +64,17 @@ namespace AI_Evlo_Test
                 for (int i = 0; i < population.Members.Count; i++)
                 {
                     ISmartObject member = population.Members[i];
-                    if (member?.HP > 0 && population.ShouldCheckGoldenAverage(member))
+                    if (ShouldAttemptGoldenAverage(population, member))
                         TryUpdateGoldenAverage(population, member);
                 }
             }
+        }
+
+        internal static bool ShouldAttemptGoldenAverage(Population population, ISmartObject member)
+        {
+            return member != null
+                && population != null
+                && population.ShouldCheckGoldenAverage(member);
         }
 
         private void InitTargets()
@@ -160,7 +168,7 @@ namespace AI_Evlo_Test
                     smartObject.HP -= 1;
             });
 
-            if (!isHeadlessMode)
+            if (!isHeadlessMode && !suppressAgentRender)
             {
                 // Visualize rays for the selected agent only
                 if (SelectedObject != null && SelectedObject.HP > 0 && SelectedObject is SmartObject selSmart)
@@ -175,7 +183,11 @@ namespace AI_Evlo_Test
                     SmartObject smart = (SmartObject)smartObject;
                     smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
                     double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
-                    smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
+                    // Reuse the existing transform instead of allocating one per agent per frame.
+                    if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
+                        rotate.Angle = anglFromVertical;
+                    else
+                        smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
 
                     // Animate species sprite
                     if (smartObject.VisibleShape is Image img)
@@ -212,7 +224,7 @@ namespace AI_Evlo_Test
 
             ApplyRaftEnvironmentEffects();
 
-            if (!isHeadlessMode)
+            if (!isHeadlessMode && !suppressAgentRender)
             {
                 // Visualize rays for the selected agent only
                 if (SelectedObject != null && SelectedObject.HP > 0 && SelectedObject is SmartObject selSmart)
@@ -230,7 +242,11 @@ namespace AI_Evlo_Test
                         polygon.Stroke = smartObject.IsGettingHP ? Brushes.GreenYellow : Brushes.OrangeRed;
 
                     double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
-                    smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
+                    // Reuse the existing transform instead of allocating one per agent per frame.
+                    if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
+                        rotate.Angle = anglFromVertical;
+                    else
+                        smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
 
                     // Animate species sprite
                     if (smartObject.VisibleShape is Image img)
@@ -466,6 +482,11 @@ namespace AI_Evlo_Test
         readonly List<PopulationCard> lsPopuCards = new List<PopulationCard>();
         readonly List<ISensable> _sensableSnapshot = new List<ISensable>();
 
+        // Rolling history for the status-bar sparkline.
+        private const int SparkSamples = 120;
+        private readonly List<double> _sparkAlive = new List<double>();
+        private readonly List<double> _sparkFitness = new List<double>();
+
         private DateTime _lastRaftVisualUpdate = DateTime.Now;
 
         /// <summary>Returns a random raft rotation speed in degrees/second within ±5.</summary>
@@ -619,6 +640,8 @@ namespace AI_Evlo_Test
             // Selected agent live stats (icon + brain are set on selection in UpdateSelectedAgentVisual)
             UpdateSelectedAgentStats();
 
+            UpdateSparkline();
+
             // Cycles per second (measured over ~1 second windows)
             DateTime now = DateTime.Now;
             double elapsedSeconds = (now - lastCpsCheckTime).TotalSeconds;
@@ -655,8 +678,6 @@ namespace AI_Evlo_Test
                     continue;
 
                 int liveMembers = 0;
-                int genMin = int.MaxValue;
-                int genMax = int.MinValue;
                 double totalFitness = 0;
 
                 for (int memberIndex = 0; memberIndex < pop.Members.Count; memberIndex++)
@@ -664,11 +685,6 @@ namespace AI_Evlo_Test
                     ISmartObject member = pop.Members[memberIndex];
                     if (member.Fitness > 0)
                         liveMembers++;
-
-                    if (member.Generation < genMin)
-                        genMin = member.Generation;
-                    if (member.Generation > genMax)
-                        genMax = member.Generation;
 
                     totalFitness += member.Fitness;
                 }
@@ -680,24 +696,21 @@ namespace AI_Evlo_Test
                     continue;
                 PopulationCard card = lsPopuCards[i];
 
-                card.Title.Text = $"{pop.Name}  ·  {GetPopulationBeingName(pop.Being)}";
+                card.Title.Text = $"{pop.SizeLimit} {GetPopulationBeingName(pop.Being)}";
 
-                string genes = pop.lsBestGenes.Count > 0
-                    ? $"  ·  top genes {(int)pop.lsBestGenes[pop.lsBestGenes.Count - 1].Fitness}–{(int)pop.lsBestGenes[0].Fitness}"
-                    : "";
                 string golden = pop.GoldenAgentEnabled
-                    ? $"  ·  golden {pop.GoldenAveragedNetworkCount} / T{(int)Math.Ceiling(pop.GoldenThreshold)}"
+                    ? $"  · {pop.GoldenAveragedNetworkCount} merged to golden | T{(int)Math.Ceiling(pop.GoldenThreshold)}"
                     : "  ·  golden off";
                 card.Stats.Text =
-                    $"{liveMembers} alive / {lostMembers} lost  ·  Gen {genMin}–{genMax}" + Environment.NewLine +
-                    $"avg fitness {avgFitness}{genes}{golden}";
+                    $"{liveMembers} alive / {lostMembers}  + avg fitness { avgFitness}" + Environment.NewLine +
+                    $"{golden}";
 
                 string tip =
                     $"Population '{pop.Name}' ({GetPopulationBeingName(pop.Being)})" + Environment.NewLine +
                     $"Live agents: {liveMembers}  |  Lost agents: {lostMembers}" + Environment.NewLine +
-                    $"Generations with surviving agents: {genMin} to {genMax}" + Environment.NewLine +
                     $"Average fitness: {avgFitness}" + Environment.NewLine +
-                    $"Golden agent: {(pop.GoldenAgentEnabled ? "enabled" : "disabled")}  |  Averaged networks: {pop.GoldenAveragedNetworkCount}  |  GoldenThreshold: {(int)Math.Ceiling(pop.GoldenThreshold)}";
+                    $"Golden agent: {(pop.GoldenAgentEnabled ? "enabled" : "disabled")} | Merged : {pop.GoldenAveragedNetworkCount} | GoldenThreshold: {(int)Math.Ceiling(pop.GoldenThreshold)}" + Environment.NewLine +
+                    $"T = an agent must survive {(int)Math.Ceiling(pop.GoldenThreshold)} cycles before it can merge its brain into the golden agent.";
                 card.Root.ToolTip = tip;
 
                 if (_selectedPopulation == pop)
@@ -706,6 +719,68 @@ namespace AI_Evlo_Test
                     lblPopulationInfo.ToolTip = tip;
                 }
             }
+        }
+
+        /// <summary>
+        /// Pushes the latest "agents alive" and "top fitness" samples into the rolling
+        /// history and redraws the two status-bar sparklines. Each series auto-scales to
+        /// its own running maximum so both stay visible regardless of magnitude.
+        /// </summary>
+        private void UpdateSparkline()
+        {
+            if (sparkCanvas == null)
+                return;
+
+            int aliveCount = 0;
+            double topFitness = 0;
+            for (int i = 0; i < lsObjects.Count; i++)
+            {
+                ISmartObject o = lsObjects[i];
+                if (o is SmartObject s && s.IsGoldenAgent)
+                    continue;
+
+                aliveCount++;
+                if (o.Fitness > topFitness)
+                    topFitness = o.Fitness;
+            }
+
+            PushSparkSample(_sparkAlive, aliveCount);
+            PushSparkSample(_sparkFitness, topFitness);
+
+            BuildSparkline(sparkAlive, _sparkAlive);
+            BuildSparkline(sparkFitness, _sparkFitness);
+        }
+
+        private static void PushSparkSample(List<double> buffer, double value)
+        {
+            buffer.Add(value);
+            if (buffer.Count > SparkSamples)
+                buffer.RemoveAt(0);
+        }
+
+        private void BuildSparkline(System.Windows.Shapes.Polyline line, List<double> buffer)
+        {
+            int n = buffer.Count;
+            var points = new PointCollection();
+            if (n >= 2)
+            {
+                double w = sparkCanvas.Width;
+                double h = sparkCanvas.Height;
+
+                double max = 0;
+                for (int i = 0; i < n; i++)
+                    if (buffer[i] > max) max = buffer[i];
+                if (max <= 0) max = 1;
+
+                double stepX = w / (SparkSamples - 1);
+                for (int i = 0; i < n; i++)
+                {
+                    double x = i * stepX;
+                    double y = h - 1 - (buffer[i] / max) * (h - 2);
+                    points.Add(new Point(x, y));
+                }
+            }
+            line.Points = points;
         }
 
         private void ApplyRaftEnvironmentEffects()

@@ -275,10 +275,9 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
-        public void PopulationRegrowthPolicy_ShouldSpawn_WhenBelowLimitAndTimerDue()
+        public void PopulationRegrowthPolicy_ShouldSpawn_WhenBelowLimitAndCycleDue()
         {
-            var now = new DateTime(2026, 6, 2, 12, 0, 0);
-            var population = new Population { SizeLimit = 5, NextRegrowAt = now.AddSeconds(-1) };
+            var population = new Population { SizeLimit = 5, NextRegrowCycle = 100 };
             population.Members = new List<ISmartObject>
             {
                 new SmartObject(),
@@ -287,39 +286,42 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 new SmartObject()
             };
 
-            Assert.IsTrue(PopulationRegrowthPolicy.ShouldSpawn(population, now));
+            Assert.IsTrue(PopulationRegrowthPolicy.ShouldSpawn(population, currentCycle: 100));
         }
 
         [TestMethod]
         public void PopulationRegrowthPolicy_ShouldSpawn_WhenBelowLimitAndNotScheduled_ReturnsFalse()
         {
-            var now = new DateTime(2026, 6, 2, 12, 0, 0);
             var population = new Population { SizeLimit = 2 };
             population.Members = new List<ISmartObject> { new SmartObject() };
 
-            Assert.IsFalse(PopulationRegrowthPolicy.ShouldSpawn(population, now));
+            Assert.IsFalse(PopulationRegrowthPolicy.ShouldSpawn(population, currentCycle: 100));
         }
 
         [TestMethod]
         public void PopulationRegrowthPolicy_ShouldSpawn_WhenAtLimit_ReturnsFalse()
         {
-            var now = new DateTime(2026, 6, 2, 12, 0, 0);
-            var population = new Population { SizeLimit = 2, NextRegrowAt = now.AddSeconds(-1) };
+            var population = new Population { SizeLimit = 2, NextRegrowCycle = 100 };
             population.Members = new List<ISmartObject> { new SmartObject(), new SmartObject() };
 
-            Assert.IsFalse(PopulationRegrowthPolicy.ShouldSpawn(population, now));
+            Assert.IsFalse(PopulationRegrowthPolicy.ShouldSpawn(population, currentCycle: 100));
         }
 
         [TestMethod]
-        public void PopulationRegrowthPolicy_MarkSpawned_SchedulesNextSpawnOneSecondLaterAndAdvancesMode()
+        public void PopulationRegrowthPolicy_MarkSpawned_SchedulesNextSpawnByNaturalSurvivalTicksAndAdvancesMode()
         {
-            var now = new DateTime(2026, 6, 2, 12, 0, 0);
-            var population = new Population { RegrowModeIndex = 4 };
+            var frogPopulation = new Population { Being = PopulationBeing.Frog, RegrowModeIndex = 4 };
+            var sharkPopulation = new Population { Being = PopulationBeing.Shark };
+            var birdPopulation = new Population { Being = PopulationBeing.Bird };
 
-            PopulationRegrowthPolicy.MarkSpawned(population, now);
+            PopulationRegrowthPolicy.MarkSpawned(frogPopulation, currentCycle: 1000);
+            PopulationRegrowthPolicy.MarkSpawned(sharkPopulation, currentCycle: 1000);
+            PopulationRegrowthPolicy.MarkSpawned(birdPopulation, currentCycle: 1000);
 
-            Assert.AreEqual(now.AddSeconds(1), population.NextRegrowAt);
-            Assert.AreEqual(0, population.RegrowModeIndex);
+            Assert.AreEqual(1000 + (int)Math.Ceiling(SmartObject.MaxHp / SmartObject.BaseHpDrain), frogPopulation.NextRegrowCycle);
+            Assert.AreEqual(1000 + (int)Math.Ceiling(Shark.SharkMaxHp / Shark.SwimHpDrain), sharkPopulation.NextRegrowCycle);
+            Assert.AreEqual(1000 + (int)Math.Ceiling(Bird.BirdMaxHp / Bird.FlightHpDrain), birdPopulation.NextRegrowCycle);
+            Assert.AreEqual(0, frogPopulation.RegrowModeIndex);
         }
 
         [TestMethod]
@@ -430,6 +432,28 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
+        public void TryAverageGoldenBrain_WhenAverageCountExceedsOneHundred_CapsBlendDenominator()
+        {
+            var population = new Population
+            {
+                GoldenAgentGene = CreateGoldenTestGene(10, 20, 30),
+                GoldenAveragedNetworkCount = 150
+            };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(111, 121, 131)))
+            {
+                Cycles = SmartObject.MaxHp * 4 + 1
+            };
+
+            bool averaged = population.TryAverageGoldenBrain(survivor);
+
+            Assert.IsTrue(averaged);
+            Assert.AreEqual(151, population.GoldenAveragedNetworkCount);
+            Assert.AreEqual(11, population.GoldenAgentGene.InputGene.Neurons[0].Axon.Weights[0], 0.000001);
+            Assert.AreEqual(21, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Soma.Bias, 0.000001);
+            Assert.AreEqual(31, population.GoldenAgentGene.HiddenGenes[0].Neurons[0].Axon.Weights[0], 0.000001);
+        }
+
+        [TestMethod]
         public void TryAverageGoldenBrain_WhenDisabled_DoesNotAverageQualifiedSurvivor()
         {
             var population = new Population { GoldenAgentEnabled = false };
@@ -528,6 +552,24 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             survivor.Cycles = 1100;
             Assert.IsTrue(population.ShouldCheckGoldenAverage(survivor));
+        }
+
+        [TestMethod]
+        public void ShouldAttemptGoldenAverage_WhenQualifiedSurvivorHasZeroHp_ReturnsTrue()
+        {
+            var population = new Population
+            {
+                GoldenThreshold = 1000
+            };
+            var survivor = new SmartObject(NeuralNetworkFactory.GetInstance().Create(CreateGoldenTestGene(1, 2, 3)))
+            {
+                Cycles = 1000,
+                HP = 0
+            };
+
+            bool shouldAttempt = AI_Evlo_Test.MainWindow.ShouldAttemptGoldenAverage(population, survivor);
+
+            Assert.IsTrue(shouldAttempt);
         }
 
         [TestMethod]

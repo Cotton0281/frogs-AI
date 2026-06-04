@@ -94,6 +94,17 @@ namespace AI_Evlo_Test
         bool isHeadlessMode = false;
         int headlessBatchSize = 50;
 
+        bool simulationRunning = false;
+        // Max-speed mode: when the Speed slider is at the far right we drop the
+        // DispatcherTimer (capped at the ~60 Hz system timer resolution) and pump the
+        // simulation continuously through the dispatcher instead — no artificial cap.
+        bool runAtMaxSpeed = false;
+        bool maxPumpScheduled = false;
+        // When true, agents skip rendering this tick. Used to fast-forward the
+        // intermediate ticks of a max-speed batch and paint only the final state.
+        bool suppressAgentRender = false;
+        const int MaxSpeedVisibleBatch = 12;
+
         // Single reusable instance of the population list window — never open two.
         private PopulationList _populationListForm;
         public MainWindow()
@@ -102,7 +113,7 @@ namespace AI_Evlo_Test
             InitializeComponent();
             LoadMovementSettings();
             Clock.Tick += new EventHandler(Clock_Tick);
-            Clock.Interval = new TimeSpan(0, 0, 0, 0, (int)sliderSpeed.Value);
+            ApplyClockSpeed();
             lineToTarget = new Line
             {
                 Stroke = Brushes.LightSteelBlue,
@@ -128,18 +139,55 @@ namespace AI_Evlo_Test
             //this.Hide();
         }
 
+        // Timer-driven loop for every speed except the far-right "max" setting.
         private void Clock_Tick(object sender, EventArgs e)
         {
             if (boolTickCompleted == false)
                 return;
 
             boolTickCompleted = false;
+            RunSimulationBatch(isHeadlessMode ? headlessBatchSize : 1, renderOnlyLast: false);
+            boolTickCompleted = true;
+        }
 
-            int iterations = isHeadlessMode ? headlessBatchSize : 1;
+        // Continuous max-speed pump. Re-posts itself at Background priority so it runs
+        // flat-out when the dispatcher is idle but still yields to input/painting, and is
+        // not throttled by the DispatcherTimer's ~60 Hz resolution.
+        private void PumpMaxSpeed()
+        {
+            if (!simulationRunning || !runAtMaxSpeed)
+            {
+                maxPumpScheduled = false;
+                return;
+            }
+
+            int iterations = isHeadlessMode ? headlessBatchSize : MaxSpeedVisibleBatch;
+            RunSimulationBatch(iterations, renderOnlyLast: !isHeadlessMode);
+            Dispatcher.BeginInvoke(new Action(PumpMaxSpeed), DispatcherPriority.Background);
+        }
+
+        private void StartMaxPump()
+        {
+            if (maxPumpScheduled)
+                return;
+
+            maxPumpScheduled = true;
+            Dispatcher.BeginInvoke(new Action(PumpMaxSpeed), DispatcherPriority.Background);
+        }
+
+        /// <summary>
+        /// Runs <paramref name="iterations"/> simulation ticks then refreshes UI once.
+        /// When <paramref name="renderOnlyLast"/> is set, agents skip rendering on all but
+        /// the final tick so a batch fast-forwards rather than painting every step.
+        /// </summary>
+        private void RunSimulationBatch(int iterations, bool renderOnlyLast)
+        {
             for (int tick = 0; tick < iterations; tick++)
             {
+                suppressAgentRender = renderOnlyLast && tick < iterations - 1;
                 SimulationTick();
             }
+            suppressAgentRender = false;
 
             UpdateLabbels();
 
@@ -156,8 +204,6 @@ namespace AI_Evlo_Test
                         drawLine(Target.Location, Target.Location);
                 }
             }
-
-            boolTickCompleted = true;
         }
 
         private void EvoChember_NewMessage(string Message)
@@ -529,18 +575,10 @@ namespace AI_Evlo_Test
 
         private void BtnStart_Click(object sender, RoutedEventArgs e)
         {
-            if (!Clock.IsEnabled)
-            {
-                Clock.Start();
-                Log("Stared at " + DateTime.Now.ToShortTimeString());
-                btnStart.Content = "Pause";
-            }
+            if (!simulationRunning)
+                StartSimulation();
             else
-            {
-                Clock.Stop();
-                Log($"Paused {DateTime.Now.ToShortTimeString()}");
-                btnStart.Content = "Start";
-            }
+                StopSimulation();
         }
 
         private void Log(string msg)
@@ -550,7 +588,34 @@ namespace AI_Evlo_Test
 
         private void SliderSpeed_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            Clock.Interval = new TimeSpan(0, 0, 0, 0, (int)sliderSpeed.Value);
+            ApplyClockSpeed();
+        }
+
+        /// <summary>
+        /// Maps the "Speed" slider to the run mode. Left = slow, right = fast, so the timer
+        /// interval is the inverse of the value (1 ms floor). At the far-right ("max") the
+        /// timer is dropped entirely in favour of the continuous pump.
+        /// </summary>
+        private void ApplyClockSpeed()
+        {
+            if (sliderSpeed == null)
+                return;
+
+            int interval = (int)Math.Max(1, sliderSpeed.Maximum - sliderSpeed.Value);
+            Clock.Interval = new TimeSpan(0, 0, 0, 0, interval);
+
+            bool atMax = sliderSpeed.Value >= sliderSpeed.Maximum;
+            if (atMax == runAtMaxSpeed)
+                return;
+
+            runAtMaxSpeed = atMax;
+
+            // If running, hand the live simulation over to the other driver immediately.
+            if (simulationRunning)
+            {
+                Clock.Stop();           // the pump self-stops via the runAtMaxSpeed flag
+                StartActiveLoop();
+            }
         }
 
         private void BtnClear_Click(object sender, RoutedEventArgs e)
@@ -861,6 +926,7 @@ namespace AI_Evlo_Test
 
         private void windowEnvirnoment_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            simulationRunning = false;   // also halts the max-speed pump
             Clock.Stop();
             Objects.WindowBoundsStore.Save("MainWindow", ActualWidth, ActualHeight);
             SaveMovementSettings();
@@ -1126,11 +1192,42 @@ namespace AI_Evlo_Test
 
         private void StartSimulation()
         {
-            if (!Clock.IsEnabled)
+            if (simulationRunning)
+                return;
+
+            simulationRunning = true;
+            btnStart.Content = "⏸ Pause";    // pause glyph
+            btnStart.Background = HpOrange;        // amber = running
+            Log("Started at " + DateTime.Now.ToShortTimeString());
+            StartActiveLoop();
+        }
+
+        private void StopSimulation()
+        {
+            if (!simulationRunning)
+                return;
+
+            simulationRunning = false;
+            Clock.Stop();                          // the max-speed pump self-stops via the flag
+            btnStart.Content = "▶ Start";    // play glyph
+            btnStart.Background = HpGreen;         // green = ready
+            Log($"Paused {DateTime.Now.ToShortTimeString()}");
+        }
+
+        /// <summary>Starts whichever driver matches the current speed setting.</summary>
+        private void StartActiveLoop()
+        {
+            if (!simulationRunning)
+                return;
+
+            if (runAtMaxSpeed)
+            {
+                Clock.Stop();
+                StartMaxPump();
+            }
+            else
             {
                 Clock.Start();
-                btnStart.Content = "Pause";
-                Log("Started at " + DateTime.Now.ToShortTimeString());
             }
         }
 
