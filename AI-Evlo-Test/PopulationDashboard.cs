@@ -34,7 +34,6 @@ namespace AI_Evlo_Test
         public int GoldenAge;
 
         public PopulationSample[] Series = Array.Empty<PopulationSample>();
-        public double[] CurrentFitnesses = Array.Empty<double>();
         public GoldenLifetimeSample[] GoldenLifetimes = Array.Empty<GoldenLifetimeSample>();
         public GoldenAverageEvent[] GoldenEvents = Array.Empty<GoldenAverageEvent>();
 
@@ -42,32 +41,60 @@ namespace AI_Evlo_Test
         public NeuralNetworkGene GoldenCurrentGene;
     }
 
+    /// <summary>One selectable population for the dashboard's population dropdown.</summary>
+    public sealed class DashboardPopulationOption
+    {
+        public string Id;
+        public string Name;
+        public string Species;
+        public override string ToString() => $"{Name} ({Species})";
+    }
+
     /// <summary>
     /// Real-time dashboard for a single population. Refreshes from a snapshot provider on a timer;
     /// the provider (MainWindow) reads model state under simLock so this form is fully decoupled
-    /// from the simulation thread.
+    /// from the simulation thread. The active population can be changed live via the header dropdown.
     /// </summary>
     public sealed class PopulationDashboard : Form
     {
-        private readonly Func<PopulationDashboardSnapshot> snapshotProvider;
+        private readonly Func<string, PopulationDashboardSnapshot> snapshotProvider;
+        private readonly Func<List<DashboardPopulationOption>> populationsProvider;
+        private readonly Action<string, string> onPopulationSwitched;
         private readonly Timer timer = new Timer { Interval = 300 };
+
+        // Which population this dashboard is currently showing.
+        private string currentPopulationId;
+        // Population selector.
+        private ComboBox cmbPopulation;
+        private bool suppressSelectionEvent;
 
         // Header tiles.
         private Label tileAlive, tileTotal, tileTop, tileMean, tileAge, tileCycles, tileArchived;
         // Golden tiles.
         private Label gldEnabled, gldCount, gldThreshold, gldRecord, gldAge;
 
-        private SparklineChart chartPop, chartFitness, chartAge, chartHist;
-        private SparklineChart chartLongevity, chartCadence, chartPerLayer;
+        private DashboardChart chartPop, chartFitness, chartEvolution, chartDeaths;
+        private DashboardChart chartLongevity, chartCadence, chartPerLayer;
         private ListBox lstEvents;
         private int lastEventCount = -1;
 
         private GeneDeltaNetworkView viewInitial, viewCurrent;
         private DataGridView gridChanged;
 
-        public PopulationDashboard(string title, Func<PopulationDashboardSnapshot> provider)
+        /// <summary>The population this dashboard currently displays (changes via the dropdown).</summary>
+        public string CurrentPopulationId => currentPopulationId;
+
+        public PopulationDashboard(
+            string title,
+            Func<List<DashboardPopulationOption>> populations,
+            Func<string, PopulationDashboardSnapshot> provider,
+            Action<string, string> onSwitched,
+            string initialPopulationId)
         {
+            populationsProvider = populations;
             snapshotProvider = provider;
+            onPopulationSwitched = onSwitched;
+            currentPopulationId = initialPopulationId;
             Text = title;
             Width = 1040;
             Height = 720;
@@ -88,20 +115,60 @@ namespace AI_Evlo_Test
 
         private void BuildUi()
         {
-            FlowLayoutPanel header = new FlowLayoutPanel
+            FlowLayoutPanel tiles = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(6, 6, 6, 0),
+                BackColor = Color.White,
+                WrapContents = false,
+                AutoScroll = true
+            };
+            tileAlive = AddTile(tiles, "Alive / limit");
+            tileTotal = AddTile(tiles, "Total ever");
+            tileTop = AddTile(tiles, "Top fitness");
+            tileMean = AddTile(tiles, "Mean fitness");
+            tileAge = AddTile(tiles, "Mean age");
+            tileCycles = AddTile(tiles, "Life cycles");
+            tileArchived = AddTile(tiles, "Archived best");
+
+            // Population selector (top-right): switches the whole dashboard to another live population.
+            FlowLayoutPanel selector = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Padding = new Padding(6, 12, 6, 0),
+                BackColor = Color.White
+            };
+            Label selLabel = new Label
+            {
+                Text = "Show population",
+                AutoSize = true,
+                Margin = new Padding(0, 6, 6, 0),
+                ForeColor = Color.FromArgb(120, 126, 136)
+            };
+            cmbPopulation = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 190,
+                Font = new Font("Segoe UI", 9f)
+            };
+            cmbPopulation.SelectedIndexChanged += OnPopulationSelected;
+            selector.Controls.Add(selLabel);
+            selector.Controls.Add(cmbPopulation);
+
+            TableLayoutPanel header = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
                 Height = 56,
-                Padding = new Padding(6, 6, 6, 0),
+                ColumnCount = 2,
+                RowCount = 1,
                 BackColor = Color.White
             };
-            tileAlive = AddTile(header, "Alive / limit");
-            tileTotal = AddTile(header, "Total ever");
-            tileTop = AddTile(header, "Top fitness");
-            tileMean = AddTile(header, "Mean fitness");
-            tileAge = AddTile(header, "Mean age");
-            tileCycles = AddTile(header, "Life cycles");
-            tileArchived = AddTile(header, "Archived best");
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
+            header.Controls.Add(tiles, 0, 0);
+            header.Controls.Add(selector, 1, 0);
 
             TabControl tabs = new TabControl { Dock = DockStyle.Fill };
             tabs.TabPages.Add(BuildPopulationTab());
@@ -129,19 +196,23 @@ namespace AI_Evlo_Test
 
             chartPop = NewChart("Population size", Color.FromArgb(40, 120, 215));
             chartPop.PrimaryLabel = "alive";
-            chartFitness = NewChart("Fitness — top vs mean", Color.FromArgb(220, 90, 40));
+            chartPop.SecondaryLabel = "% of limit";
+            chartPop.SecondaryColor = Color.FromArgb(230, 150, 40);
+            chartFitness = NewChart("Longevity — top vs mean", Color.FromArgb(220, 90, 40));
             chartFitness.PrimaryLabel = "top";
             chartFitness.SecondaryLabel = "mean";
             chartFitness.SecondaryColor = Color.FromArgb(90, 170, 90);
-            chartAge = NewChart("Mean longevity (cycles)", Color.FromArgb(150, 80, 200));
-            chartAge.PrimaryLabel = "mean age";
-            chartHist = NewChart("Current fitness distribution", Color.FromArgb(70, 140, 190));
-            chartHist.Kind = SparklineChart.ChartKind.Bars;
+            chartEvolution = NewChart("Evolution rate — Δ mean longevity / 1000 cycles", Color.FromArgb(150, 80, 200));
+            chartEvolution.PrimaryLabel = "Δ / 1k";
+            chartDeaths = NewChart("Agents lost per 1000 cycles (death rate)", Color.FromArgb(200, 70, 60));
+            chartDeaths.PrimaryLabel = "lost / 1k";
+            chartDeaths.SecondaryLabel = "% of size";
+            chartDeaths.SecondaryColor = Color.FromArgb(40, 120, 215);
 
             grid.Controls.Add(chartPop, 0, 0);
             grid.Controls.Add(chartFitness, 1, 0);
-            grid.Controls.Add(chartAge, 0, 1);
-            grid.Controls.Add(chartHist, 1, 1);
+            grid.Controls.Add(chartEvolution, 0, 1);
+            grid.Controls.Add(chartDeaths, 1, 1);
             page.Controls.Add(grid);
             return page;
         }
@@ -164,9 +235,7 @@ namespace AI_Evlo_Test
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
 
             chartLongevity = NewChart("Golden longevity per life (cycles)", Color.FromArgb(210, 160, 30));
-            chartLongevity.Kind = SparklineChart.ChartKind.Bars;
             chartCadence = NewChart("Cycles between brain merges (lower = more frequent)", Color.FromArgb(180, 120, 40));
-            chartCadence.Kind = SparklineChart.ChartKind.Bars;
 
             lstEvents = new ListBox
             {
@@ -232,7 +301,6 @@ namespace AI_Evlo_Test
             gridChanged.Columns.Add("Delta", "Δ");
 
             chartPerLayer = NewChart("Mean |change| per layer", Color.FromArgb(200, 70, 60));
-            chartPerLayer.Kind = SparklineChart.ChartKind.Bars;
 
             rightCol.Controls.Add(WrapTitled("Most-changed weights & biases", gridChanged), 0, 0);
             rightCol.Controls.Add(chartPerLayer, 0, 1);
@@ -250,8 +318,77 @@ namespace AI_Evlo_Test
 
         private void Refresh_()
         {
+            RefreshPopulationList();
+            RenderCurrent();
+        }
+
+        /// <summary>Rebuilds the population dropdown from the live population set (only when it changes).</summary>
+        private void RefreshPopulationList()
+        {
+            List<DashboardPopulationOption> opts;
+            try { opts = populationsProvider?.Invoke(); }
+            catch { return; }
+            if (opts == null)
+                return;
+
+            // Skip the rebuild when the set is unchanged, so the open dropdown is not disrupted.
+            bool changed = opts.Count != cmbPopulation.Items.Count;
+            if (!changed)
+            {
+                for (int i = 0; i < opts.Count; i++)
+                    if (!(cmbPopulation.Items[i] is DashboardPopulationOption cur)
+                        || cur.Id != opts[i].Id || cur.Name != opts[i].Name)
+                    { changed = true; break; }
+            }
+            if (!changed)
+                return;
+
+            suppressSelectionEvent = true;
+            cmbPopulation.BeginUpdate();
+            cmbPopulation.Items.Clear();
+            int selectIndex = -1;
+            for (int i = 0; i < opts.Count; i++)
+            {
+                cmbPopulation.Items.Add(opts[i]);
+                if (opts[i].Id == currentPopulationId)
+                    selectIndex = i;
+            }
+            // If the watched population vanished, fall back to the first available one.
+            if (selectIndex < 0 && cmbPopulation.Items.Count > 0)
+            {
+                selectIndex = 0;
+                SwitchTo((DashboardPopulationOption)cmbPopulation.Items[0]);
+            }
+            if (cmbPopulation.Items.Count > 0)
+                cmbPopulation.SelectedIndex = selectIndex;
+            cmbPopulation.EndUpdate();
+            suppressSelectionEvent = false;
+        }
+
+        private void OnPopulationSelected(object sender, EventArgs e)
+        {
+            if (suppressSelectionEvent)
+                return;
+            if (cmbPopulation.SelectedItem is DashboardPopulationOption opt)
+                SwitchTo(opt);
+        }
+
+        /// <summary>Points the dashboard at a different population and notifies the host to move the stats collector.</summary>
+        private void SwitchTo(DashboardPopulationOption opt)
+        {
+            if (opt == null || opt.Id == currentPopulationId)
+                return;
+            string previous = currentPopulationId;
+            currentPopulationId = opt.Id;
+            try { onPopulationSwitched?.Invoke(previous, currentPopulationId); }
+            catch { }
+            RenderCurrent();
+        }
+
+        private void RenderCurrent()
+        {
             PopulationDashboardSnapshot s;
-            try { s = snapshotProvider?.Invoke(); }
+            try { s = snapshotProvider?.Invoke(currentPopulationId); }
             catch { return; }
             if (s == null)
                 return;
@@ -273,12 +410,15 @@ namespace AI_Evlo_Test
             SetTile(gldAge, s.GoldenAlive ? s.GoldenAge.ToString() : "—");
 
             // Population charts.
-            chartPop.SetLine(s.Series.Select(x => (double)x.Alive).ToArray());
+            double[] aliveSeries = s.Series.Select(x => (double)x.Alive).ToArray();
+            chartPop.SetLinePercentRight(aliveSeries, PercentOfSize(aliveSeries, s.SizeLimit));
             chartFitness.SetLine(
                 s.Series.Select(x => x.TopFitness).ToArray(),
                 s.Series.Select(x => x.MeanFitness).ToArray());
-            chartAge.SetLine(s.Series.Select(x => x.MeanAge).ToArray());
-            chartHist.SetBars(Histogram(s.CurrentFitnesses, 12));
+            chartEvolution.SetLine(EvolutionRatePer1000(s.Series));
+
+            double[] deathRate = DeathsPer1000Cycles(s.Series);
+            chartDeaths.SetLinePercentRight(deathRate, PercentOfSize(deathRate, s.SizeLimit));
 
             // Golden charts.
             chartLongevity.SetBars(s.GoldenLifetimes.Select(x => (double)x.Lifetime).ToArray());
@@ -328,9 +468,9 @@ namespace AI_Evlo_Test
 
         // ---- helpers -------------------------------------------------------------------------
 
-        private SparklineChart NewChart(string caption, Color color)
+        private DashboardChart NewChart(string caption, Color color)
         {
-            return new SparklineChart { Dock = DockStyle.Fill, Margin = new Padding(4), Caption = caption, PrimaryColor = color };
+            return new DashboardChart { Dock = DockStyle.Fill, Margin = new Padding(4), Caption = caption, PrimaryColor = color };
         }
 
         private static Panel WrapTitled(string title, Control inner)
@@ -360,24 +500,64 @@ namespace AI_Evlo_Test
                 tile.Text = value;
         }
 
-        private static double[] Histogram(double[] values, int bins)
+        /// <summary>
+        /// Derives the death rate (agents lost per 1000 cycles) between consecutive samples.
+        /// Members are removed on death and <c>TotalEver</c> only ever grows on birth, so within a
+        /// window: deaths = births − Δalive = (TotalEver_now − TotalEver_prev) − (alive_now − alive_prev).
+        /// Normalising by the cycle gap gives a rate that is comparable regardless of sample spacing.
+        /// </summary>
+        /// <summary>
+        /// Rate of change of mean longevity (fitness) per 1000 cycles between consecutive samples.
+        /// Positive = the average agent is surviving longer over time (evolution gaining ground);
+        /// negative = the mean is falling, e.g. when long-lived survivors are replaced by fresh agents.
+        /// </summary>
+        private static double[] EvolutionRatePer1000(PopulationSample[] series)
         {
-            if (values == null || values.Length == 0)
+            if (series == null || series.Length < 2)
                 return Array.Empty<double>();
 
-            double min = values.Min();
-            double max = values.Max();
-            if (max <= min) max = min + 1;
-            double[] counts = new double[bins];
-            double span = max - min;
-            foreach (double v in values)
+            double[] rate = new double[series.Length - 1];
+            for (int i = 1; i < series.Length; i++)
             {
-                int bin = (int)((v - min) / span * (bins - 1));
-                if (bin < 0) bin = 0;
-                if (bin >= bins) bin = bins - 1;
-                counts[bin]++;
+                int cycleDelta = series[i].Cycle - series[i - 1].Cycle;
+                double meanDelta = series[i].MeanFitness - series[i - 1].MeanFitness;
+                rate[i - 1] = cycleDelta > 0 ? meanDelta * 1000.0 / cycleDelta : 0;
             }
-            return counts;
+            return rate;
+        }
+
+        /// <summary>Expresses each value as a percentage of the population size limit, clamped to 0–100%.</summary>
+        private static double[] PercentOfSize(double[] values, int sizeLimit)
+        {
+            if (values == null || values.Length == 0 || sizeLimit <= 0)
+                return Array.Empty<double>();
+
+            double[] pct = new double[values.Length];
+            for (int i = 0; i < values.Length; i++)
+            {
+                double p = values[i] * 100.0 / sizeLimit;
+                pct[i] = p < 0 ? 0 : (p > 100 ? 100 : p);
+            }
+            return pct;
+        }
+
+        private static double[] DeathsPer1000Cycles(PopulationSample[] series)
+        {
+            if (series == null || series.Length < 2)
+                return Array.Empty<double>();
+
+            double[] rate = new double[series.Length - 1];
+            for (int i = 1; i < series.Length; i++)
+            {
+                int cycleDelta = series[i].Cycle - series[i - 1].Cycle;
+                int births = series[i].TotalEver - series[i - 1].TotalEver;
+                int aliveDelta = series[i].Alive - series[i - 1].Alive;
+                int deaths = births - aliveDelta;
+                if (deaths < 0)
+                    deaths = 0;
+                rate[i - 1] = cycleDelta > 0 ? deaths * 1000.0 / cycleDelta : 0;
+            }
+            return rate;
         }
 
         private static double[] MergeIntervals(GoldenAverageEvent[] events)

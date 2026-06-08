@@ -157,7 +157,17 @@ namespace AI_Evlo_Test
         private void OnRendering(object sender, EventArgs e)
         {
             if (isHeadlessMode)
+            {
+                // No sprite rendering in headless mode, but keep the status bar live so the
+                // user can see training progress (cycle count, cycles/s, agents alive).
+                // Throttled to ~5x/sec; the model reads happen under simLock.
+                if (DateTime.Now.Subtract(dtLastLabelsUpdate) < new TimeSpan(0, 0, 0, 0, 200))
+                    return;
+                dtLastLabelsUpdate = DateTime.Now;
+                lock (simLock)
+                    UpdateStatusBar();
                 return;
+            }
 
             lock (simLock)
             {

@@ -697,33 +697,8 @@ namespace AI_Evlo_Test
 
             UpdateSparkline();
 
-            // Cycles per second (measured over ~1 second windows)
-            DateTime now = DateTime.Now;
-            double elapsedSeconds = (now - lastCpsCheckTime).TotalSeconds;
-            if (elapsedSeconds >= 1.0)
-            {
-                int cyclesDelta = CycleCount - lastCpsCheckCycle;
-                cyclesPerSecond = cyclesDelta / elapsedSeconds;
-                lastCpsCheckCycle = CycleCount;
-                lastCpsCheckTime = now;
-            }
-
             // Status bar
-            string statusText = $"Cycle {CycleCount}  |  Cycles/s: {cyclesPerSecond:F2}";
-            if (Targets.Count > 0)
-            {
-                int onTarget = Targets[0].ObjectsOnTop;
-                int alive = lsObjects.Count(o => !(o is SmartObject smart && smart.IsGoldenAgent));
-                statusText +=
-                    $"  |  Agents alive: {alive}  |  Target 1: {onTarget} on top, depth {Targets[0].Underwater:F0}";
-            }
-            if (Targets.Count > 1)
-            {
-                statusText +=
-                    $"  |  Target 2: {Targets[1].ObjectsOnTop} on top, depth {Targets[1].Underwater:F0}";
-            }
-            lblStatusBar.Content = statusText;
-            lblStatusBar.ToolTip = statusText;
+            UpdateStatusBar();
 
             // Population info
             for (int i = 0; i < lsPopulations.Count; i++)
@@ -774,6 +749,42 @@ namespace AI_Evlo_Test
                     lblPopulationInfo.ToolTip = tip;
                 }
             }
+        }
+
+        /// <summary>
+        /// Recomputes cycles/second and refreshes the status-bar text (cycle count, throughput,
+        /// live agent count, target occupancy). Cheap enough to run in headless mode, where it is
+        /// the only UI work done — it must be called on the UI thread while holding simLock.
+        /// </summary>
+        private void UpdateStatusBar()
+        {
+            // Cycles per second (measured over ~1 second windows)
+            DateTime now = DateTime.Now;
+            double elapsedSeconds = (now - lastCpsCheckTime).TotalSeconds;
+            if (elapsedSeconds >= 1.0)
+            {
+                int cyclesDelta = CycleCount - lastCpsCheckCycle;
+                cyclesPerSecond = cyclesDelta / elapsedSeconds;
+                lastCpsCheckCycle = CycleCount;
+                lastCpsCheckTime = now;
+            }
+
+            string statusText = isHeadlessMode ? "[HEADLESS] " : "";
+            statusText += $"Cycle {CycleCount}  |  Cycles/s: {cyclesPerSecond:F2}";
+            if (Targets.Count > 0)
+            {
+                int onTarget = Targets[0].ObjectsOnTop;
+                int alive = lsObjects.Count(o => !(o is SmartObject smart && smart.IsGoldenAgent));
+                statusText +=
+                    $"  |  Agents alive: {alive}  |  Target 1: {onTarget} on top, depth {Targets[0].Underwater:F0}";
+            }
+            if (Targets.Count > 1)
+            {
+                statusText +=
+                    $"  |  Target 2: {Targets[1].ObjectsOnTop} on top, depth {Targets[1].Underwater:F0}";
+            }
+            lblStatusBar.Content = statusText;
+            lblStatusBar.ToolTip = statusText;
         }
 
         /// <summary>

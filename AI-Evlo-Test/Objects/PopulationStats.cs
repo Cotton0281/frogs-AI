@@ -11,6 +11,7 @@ namespace AI_Evlo_Test.Objects
     {
         public int Cycle;
         public int Alive;
+        public int TotalEver;   // cumulative members ever created (monotonic); used to derive deaths
         public double TopFitness;
         public double MeanFitness;
         public double MeanAge;
@@ -57,7 +58,7 @@ namespace AI_Evlo_Test.Objects
         /// <summary>How many simulation cycles between time-series samples.</summary>
         public int SampleIntervalCycles { get; set; } = 25;
 
-        public int MaxSamples { get; set; } = 600;
+        public int MaxSamples { get; set; } = 1000;
         public int MaxGoldenLifetimes { get; set; } = 300;
         public int MaxGoldenEvents { get; set; } = 500;
 
@@ -97,6 +98,7 @@ namespace AI_Evlo_Test.Objects
             {
                 Cycle = currentCycle,
                 Alive = alive,
+                TotalEver = population.TotalMembersCount,
                 TopFitness = top,
                 MeanFitness = alive > 0 ? fitnessSum / alive : 0,
                 MeanAge = alive > 0 ? ageSum / alive : 0

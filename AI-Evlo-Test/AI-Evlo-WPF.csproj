@@ -85,5 +85,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.Compatibility" Version="10.0.8" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="ScottPlot.WinForms" Version="5.1.58" />
   </ItemGroup>
 </Project>

@@ -105,9 +105,9 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` â
 | `MainWindow.AgentFactory.cs` | Agent/shape creation, offspring, disposal, population re-growth |
 | `PopulationList.cs` | Population statistics viewer (WinForms DataGrid) |
 | `VisualizeNetwork.cs` | Neural-network topology visualization (WinForms) |
-| `PopulationDashboard.cs` | Per-population dashboard (WinForms): live charts, golden-agent stats, initial-vs-current brain diff |
-| `MainWindow.Dashboard.cs` | Dashboard host: context-menu entry, attaches/detaches the stats collector, builds snapshots under `simLock` |
-| `Controls/SparklineChart.cs` | Dependency-free GDI line/bar/histogram chart |
+| `PopulationDashboard.cs` | Per-population dashboard (WinForms): live charts, golden-agent stats, initial-vs-current brain diff; header dropdown switches the active population live |
+| `MainWindow.Dashboard.cs` | Dashboard host: context-menu entry, ref-counted attach/detach of the stats collector, population-list + by-id snapshot providers (all under `simLock`) |
+| `Controls/DashboardChart.cs` | ScottPlot-backed line/bar chart wrapper (`SetLine`/`SetBars`) used by the dashboard |
 | `Controls/GeneDeltaNetworkView.cs` | Gene-driven NN view colour-coding change (blackâ†’red) between two genes |
 | `Objects/PopulationStats.cs` | Runtime-only, attach-on-demand history collector for one population |
 
@@ -127,6 +127,7 @@ current `GoldenAgentGene`.
 
 - **NeuralNetwork 7.4.0** (`ArtificialNeuralNetwork` namespace): neural network engine.
 - **Newtonsoft.Json 13.0.x**: population serialization.
+- **ScottPlot.WinForms 5.x** (pulls SkiaSharp): dashboard charts (`Controls/DashboardChart.cs`).
 
 ## Code Conventions
 

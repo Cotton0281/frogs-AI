@@ -11,27 +11,102 @@ namespace AI_Evlo_Test
     // simulation goes back to a single `pop.Stats?.` null-check per tick.
     public partial class MainWindow
     {
-        private readonly Dictionary<string, PopulationDashboard> _dashboards =
-            new Dictionary<string, PopulationDashboard>();
+        // Dashboards currently open. Each one can switch which population it shows via its dropdown,
+        // so they are tracked as a flat list rather than keyed by population.
+        private readonly List<PopulationDashboard> _openDashboards = new List<PopulationDashboard>();
+
+        // How many open dashboards are watching each population. A population needs its PopulationStats
+        // collector attached while >=1 dashboard watches it; the count lets switching/closing free it
+        // only once the last watcher is gone.
+        private readonly Dictionary<string, int> _statsWatchCount = new Dictionary<string, int>();
 
         private void ShowPopulationDashboard(Population population)
         {
             if (population == null)
                 return;
 
-            // Bring an existing dashboard to the front rather than opening a second one.
-            if (_dashboards.TryGetValue(population.ID, out PopulationDashboard existing)
-                && existing != null && !existing.IsDisposed)
+            // Bring an existing dashboard already showing this population to the front.
+            foreach (PopulationDashboard open in _openDashboards)
             {
-                existing.WindowState = System.Windows.Forms.FormWindowState.Normal;
-                existing.BringToFront();
-                existing.Activate();
-                return;
+                if (open != null && !open.IsDisposed && open.CurrentPopulationId == population.ID)
+                {
+                    open.WindowState = System.Windows.Forms.FormWindowState.Normal;
+                    open.BringToFront();
+                    open.Activate();
+                    return;
+                }
             }
 
-            // Attach the history collector so recording starts now.
+            AttachStats(population.ID);
+
+            PopulationDashboard dashboard = new PopulationDashboard(
+                $"Dashboard — {population.Name}",
+                GetDashboardPopulationOptions,
+                BuildDashboardSnapshotById,
+                OnDashboardPopulationSwitched,
+                population.ID);
+
+            dashboard.FormClosed += (s, e) =>
+            {
+                _openDashboards.Remove(dashboard);
+                // Stop recording for whichever population it was last watching.
+                DetachStats(dashboard.CurrentPopulationId);
+            };
+
+            _openDashboards.Add(dashboard);
+            dashboard.Show();
+        }
+
+        /// <summary>Lists the live populations for a dashboard's population dropdown.</summary>
+        private List<DashboardPopulationOption> GetDashboardPopulationOptions()
+        {
+            List<DashboardPopulationOption> list = new List<DashboardPopulationOption>();
             lock (simLock)
             {
+                foreach (Population p in lsPopulations)
+                    list.Add(new DashboardPopulationOption
+                    {
+                        Id = p.ID,
+                        Name = p.Name,
+                        Species = GetPopulationBeingName(p.Being)
+                    });
+            }
+            return list;
+        }
+
+        /// <summary>Builds a snapshot for the population with the given id, or null if it no longer exists.</summary>
+        private PopulationDashboardSnapshot BuildDashboardSnapshotById(string populationId)
+        {
+            Population population;
+            lock (simLock)
+                population = lsPopulations.FirstOrDefault(p => p.ID == populationId);
+            return population != null ? BuildDashboardSnapshot(population) : null;
+        }
+
+        /// <summary>A dashboard switched populations: attach the new collector before freeing the old.</summary>
+        private void OnDashboardPopulationSwitched(string oldId, string newId)
+        {
+            if (oldId == newId)
+                return;
+            AttachStats(newId);
+            DetachStats(oldId);
+        }
+
+        /// <summary>Attaches (ref-counted) the history collector to a population so recording starts.</summary>
+        private void AttachStats(string populationId)
+        {
+            if (string.IsNullOrEmpty(populationId))
+                return;
+            lock (simLock)
+            {
+                _statsWatchCount.TryGetValue(populationId, out int count);
+                _statsWatchCount[populationId] = count + 1;
+                if (count > 0)
+                    return; // already being recorded by another dashboard
+
+                Population population = lsPopulations.FirstOrDefault(p => p.ID == populationId);
+                if (population == null)
+                    return;
                 if (population.Stats == null)
                     population.Stats = new PopulationStats();
 
@@ -42,21 +117,29 @@ namespace AI_Evlo_Test
                 if (population.GoldenInitialGene == null && population.GoldenAgentGene != null)
                     population.GoldenInitialGene = Utils.CloneGene(population.GoldenAgentGene);
             }
+        }
 
-            PopulationDashboard dashboard = new PopulationDashboard(
-                $"Dashboard — {population.Name}",
-                () => BuildDashboardSnapshot(population));
-
-            dashboard.FormClosed += (s, e) =>
+        /// <summary>Detaches (ref-counted) the collector, freeing it once the last dashboard stops watching.</summary>
+        private void DetachStats(string populationId)
+        {
+            if (string.IsNullOrEmpty(populationId))
+                return;
+            lock (simLock)
             {
-                _dashboards.Remove(population.ID);
-                // Stop recording (and free the buffers) once no dashboard is watching this population.
-                lock (simLock)
-                    population.Stats = null;
-            };
+                if (!_statsWatchCount.TryGetValue(populationId, out int count))
+                    return;
+                count--;
+                if (count > 0)
+                {
+                    _statsWatchCount[populationId] = count;
+                    return;
+                }
 
-            _dashboards[population.ID] = dashboard;
-            dashboard.Show();
+                _statsWatchCount.Remove(populationId);
+                Population population = lsPopulations.FirstOrDefault(p => p.ID == populationId);
+                if (population != null)
+                    population.Stats = null;
+            }
         }
 
         /// <summary>
@@ -91,7 +174,6 @@ namespace AI_Evlo_Test
                 List<ISmartObject> members = population.Members ?? new List<ISmartObject>();
                 int alive = 0;
                 double top = 0, fitnessSum = 0, ageSum = 0;
-                double[] fitnesses = new double[members.Count];
                 for (int i = 0; i < members.Count; i++)
                 {
                     ISmartObject m = members[i];
@@ -99,7 +181,6 @@ namespace AI_Evlo_Test
                         continue;
                     alive++;
                     double fitness = m.Fitness;
-                    fitnesses[i] = fitness;
                     fitnessSum += fitness;
                     if (fitness > top)
                         top = fitness;
@@ -128,7 +209,6 @@ namespace AI_Evlo_Test
                     GoldenAge = population.GoldenAgent?.Cycles ?? 0,
 
                     Series = stats?.SnapshotSamples() ?? Array.Empty<PopulationSample>(),
-                    CurrentFitnesses = fitnesses,
                     GoldenLifetimes = stats?.SnapshotGoldenLifetimes() ?? Array.Empty<GoldenLifetimeSample>(),
                     GoldenEvents = stats?.SnapshotGoldenEvents() ?? Array.Empty<GoldenAverageEvent>(),
 
