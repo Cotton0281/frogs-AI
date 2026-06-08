@@ -4,14 +4,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ArtificialNeuralNetwork.Genes;
+using AI_Evlo_Test.Objects;
 
 namespace AI_Evlo_Test.ConfigLib
 {
     
    public class NeuroNetStructure
     {
-        public int Inputs = 25; // 1 HP deficit + 12 rays x 2 (distance + type)
-        public int Outputs = 2;
+        public int Inputs = InputsDefault; // HP deficit + memory + 12 rays x 2 hits x 2 values
+        public int Outputs = OutputsDefault; // rotation + thrust + memory writes
         public int HiddenLayers ;
         public int NeuronsInHiddenLayer ;
         public string Id { get; internal set; }
@@ -86,8 +87,8 @@ namespace AI_Evlo_Test.ConfigLib
             };
         }
 
-        private const int InputsDefault = 25;
-        private const int OutputsDefault = 2;
+        public const int InputsDefault = SmartObject.InputCount;
+        public const int OutputsDefault = SmartObject.OutputCount;
     }
 
 }

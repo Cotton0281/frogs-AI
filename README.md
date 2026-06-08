@@ -20,9 +20,14 @@ A living **ecosystem** runs in real time on a canvas, with multiple co-evolving 
 Each population can maintain one **[Golden Agent](AI-Evlo-Test/data/GoldenAgent.md)**: a golden-tinted representative whose brain is the running average of long-lived survivor brains.
 
 Each creature senses its world through **ego-centric raycasting** (whisker-like "vision"), feeds those
-signals into its own neural network, and acts — rotating and thrusting — entirely on its own. Sharks
-pressure frogs in open water while birds pressure sharks from rafts, so there is no single safe strategy; the population has to
-*discover* one.
+signals into its own neural network, and acts — rotating and thrusting — entirely on its own. The
+current sensor model reports two distinct object categories per ray, so an agent can still detect a
+predator behind a crowd of prey instead of only seeing the first body in the beam. Each brain also has
+a tiny learned recurrent scratchpad: two neural-network outputs are fed back as two inputs on the next
+tick, letting evolution discover what short-term state is worth remembering.
+
+Sharks pressure frogs in open water while birds pressure sharks from rafts, so there is no single safe
+strategy; the population has to *discover* one.
 
 ## The research angles it lets you poke at
 
@@ -55,13 +60,13 @@ restores your last session, or seeds a default scenario (2 rafts, 50 frogs, 10 b
 
 ## Build & run
 
-- **Stack:** C# / WPF on .NET Framework 4.7.2 (Windows). Neural network engine:
-  [`NeuralNetwork` 7.4.0](https://www.nuget.org/packages/NeuralNetwork) (`ArtificialNeuralNetwork`).
+- **Stack:** C# / WPF on .NET 10 Windows. Neural network engine:
+  [`NeuralNetwork` 7.4.0](https://www.nuget.org/packages/NeuralNetwork) (`ArtificialNeuralNetwork` compatibility layer).
 - Restore packages, then build the solution:
 
 ```bash
-nuget restore AI-Evlo-WPF.sln
-msbuild AI-Evlo-WPF.sln /p:Configuration=Release /p:Platform="Any CPU"
+dotnet restore AI-Evlo-WPF.sln
+dotnet build AI-Evlo-WPF.sln -c Release
 # Output: bin\Release\ML-Evolutions.exe
 ```
 

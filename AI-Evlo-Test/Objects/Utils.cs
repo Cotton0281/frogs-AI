@@ -1,6 +1,7 @@
 ﻿using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.Factories;
 using ArtificialNeuralNetwork.Genes;
+using AI_Evlo_Test.ConfigLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -91,6 +92,29 @@ namespace AI_Evlo_Test.Objects
             return HasSameLayerTopology(gene1.InputGene, gene2.InputGene)
                 && HasSameLayerSetTopology(gene1.HiddenGenes, gene2.HiddenGenes)
                 && HasSameLayerTopology(gene1.OutputGene, gene2.OutputGene);
+        }
+
+        public static bool MatchesStructure(NeuralNetworkGene gene, NeuroNetStructure structure)
+        {
+            if (gene == null || structure == null)
+                return false;
+
+            if (gene.InputGene?.Neurons == null || gene.InputGene.Neurons.Count != structure.Inputs)
+                return false;
+
+            if (gene.OutputGene?.Neurons == null || gene.OutputGene.Neurons.Count != structure.Outputs)
+                return false;
+
+            if (gene.HiddenGenes == null || gene.HiddenGenes.Count != structure.HiddenLayers)
+                return false;
+
+            for (int i = 0; i < gene.HiddenGenes.Count; i++)
+            {
+                if (gene.HiddenGenes[i]?.Neurons == null || gene.HiddenGenes[i].Neurons.Count != structure.NeuronsInHiddenLayer)
+                    return false;
+            }
+
+            return true;
         }
 
         public static NeuralNetworkGene IncrementalAverageGene(NeuralNetworkGene currentAverage, NeuralNetworkGene newValue, int currentCount)

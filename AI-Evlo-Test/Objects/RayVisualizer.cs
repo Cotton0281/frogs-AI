@@ -36,8 +36,11 @@ namespace AI_Evlo_Test.Objects
         private static readonly Brush BrushHitDot = Brushes.White;
 
         private const double RayOpacity = 0.5;
+        private const double SecondaryRayOpacity = 0.35;
         private const double RayThickness = 1.0;
+        private const double SecondaryRayThickness = 0.8;
         private const double HitDotSize = 6.0;
+        private const double SecondaryHitDotSize = 4.0;
 
         public bool IsVisible
         {
@@ -63,52 +66,113 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         public void Draw(Point agentLocation, RayPerception perception)
         {
-            if (!_isVisible || perception == null)
+            if (!_isVisible)
                 return;
+
+            if (perception == null)
+            {
+                Hide();
+                return;
+            }
 
             EnsureElements(perception.RayCount);
 
             for (int r = 0; r < perception.RayCount; r++)
             {
-                RayHit hit = perception.Hits[r];
-                Line line = _rayLines[r];
-                Ellipse dot = _hitDots[r];
+                RayHit firstHit = GetHit(perception, r, 0);
+                RayHit secondHit = GetHit(perception, r, 1);
+                Line firstLine = _rayLines[VisualIndex(r, 0)];
+                Line secondLine = _rayLines[VisualIndex(r, 1)];
+                Ellipse firstDot = _hitDots[VisualIndex(r, 0)];
+                Ellipse secondDot = _hitDots[VisualIndex(r, 1)];
 
-                if (!hit.IsValid)
+                if (!firstHit.IsValid)
                 {
-                    line.Visibility = Visibility.Collapsed;
-                    dot.Visibility = Visibility.Collapsed;
+                    firstLine.Visibility = Visibility.Collapsed;
+                    firstDot.Visibility = Visibility.Collapsed;
+                    secondLine.Visibility = Visibility.Collapsed;
+                    secondDot.Visibility = Visibility.Collapsed;
                     continue;
                 }
 
-                // Draw the ray line from agent to hit/max point
-                line.X1 = agentLocation.X;
-                line.Y1 = agentLocation.Y;
-                line.X2 = hit.HitPoint.X;
-                line.Y2 = hit.HitPoint.Y;
-                line.Stroke = GetBrushForCategory(hit.Category);
-                line.Visibility = Visibility.Visible;
-
-                // Draw a dot only where something was actually hit
-                if (hit.Category.HasValue)
-                {
-                    Canvas.SetLeft(dot, hit.HitPoint.X - HitDotSize / 2);
-                    Canvas.SetTop(dot, hit.HitPoint.Y - HitDotSize / 2);
-                    dot.Fill = GetBrushForCategory(hit.Category);
-                    dot.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    dot.Visibility = Visibility.Collapsed;
-                }
+                DrawFirstHit(agentLocation, firstHit, firstLine, firstDot);
+                DrawSecondHit(firstHit, secondHit, secondLine, secondDot);
             }
 
             // Hide any extra pooled elements
-            for (int r = perception.RayCount; r < _rayLines.Count; r++)
+            for (int i = VisualElementCount(perception.RayCount); i < _rayLines.Count; i++)
             {
-                _rayLines[r].Visibility = Visibility.Collapsed;
-                _hitDots[r].Visibility = Visibility.Collapsed;
+                _rayLines[i].Visibility = Visibility.Collapsed;
+                _hitDots[i].Visibility = Visibility.Collapsed;
             }
+        }
+
+        private static RayHit GetHit(RayPerception perception, int rayIndex, int hitIndex)
+        {
+            if (hitIndex == 0)
+            {
+                RayHit layered = perception.HitLayers[rayIndex, 0];
+                return layered.IsValid ? layered : perception.Hits[rayIndex];
+            }
+
+            return perception.HitLayers[rayIndex, hitIndex];
+        }
+
+        private static void DrawFirstHit(Point agentLocation, RayHit hit, Line line, Ellipse dot)
+        {
+            line.X1 = agentLocation.X;
+            line.Y1 = agentLocation.Y;
+            line.X2 = hit.HitPoint.X;
+            line.Y2 = hit.HitPoint.Y;
+            line.Stroke = GetBrushForCategory(hit.Category);
+            line.Visibility = Visibility.Visible;
+
+            DrawDot(dot, hit, HitDotSize);
+        }
+
+        private static void DrawSecondHit(RayHit firstHit, RayHit secondHit, Line line, Ellipse dot)
+        {
+            if (!secondHit.IsValid || !secondHit.Category.HasValue)
+            {
+                line.Visibility = Visibility.Collapsed;
+                dot.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            line.X1 = firstHit.HitPoint.X;
+            line.Y1 = firstHit.HitPoint.Y;
+            line.X2 = secondHit.HitPoint.X;
+            line.Y2 = secondHit.HitPoint.Y;
+            line.Stroke = GetBrushForCategory(secondHit.Category);
+            line.Visibility = Visibility.Visible;
+
+            DrawDot(dot, secondHit, SecondaryHitDotSize);
+        }
+
+        private static void DrawDot(Ellipse dot, RayHit hit, double dotSize)
+        {
+            if (hit.Category.HasValue)
+            {
+                Canvas.SetLeft(dot, hit.HitPoint.X - dotSize / 2);
+                Canvas.SetTop(dot, hit.HitPoint.Y - dotSize / 2);
+                dot.Fill = GetBrushForCategory(hit.Category);
+                dot.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                dot.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>
+        /// Hide all pooled ray visuals without removing them from the canvas.
+        /// </summary>
+        public void Hide()
+        {
+            foreach (Line line in _rayLines)
+                line.Visibility = Visibility.Collapsed;
+            foreach (Ellipse dot in _hitDots)
+                dot.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>
@@ -126,21 +190,26 @@ namespace AI_Evlo_Test.Objects
 
         private void EnsureElements(int count)
         {
-            while (_rayLines.Count < count)
+            int elementCount = VisualElementCount(count);
+            while (_rayLines.Count < elementCount)
             {
+                bool isSecondLayer = _rayLines.Count % RayPerception.HitsPerRay == 1;
                 Line line = new Line
                 {
-                    StrokeThickness = RayThickness,
-                    Opacity = RayOpacity,
+                    StrokeThickness = isSecondLayer ? SecondaryRayThickness : RayThickness,
+                    Opacity = isSecondLayer ? SecondaryRayOpacity : RayOpacity,
                     IsHitTestVisible = false
                 };
+                if (isSecondLayer)
+                    line.StrokeDashArray = new DoubleCollection { 3, 3 };
                 _canvas.Children.Add(line);
                 _rayLines.Add(line);
 
+                double dotSize = isSecondLayer ? SecondaryHitDotSize : HitDotSize;
                 Ellipse dot = new Ellipse
                 {
-                    Width = HitDotSize,
-                    Height = HitDotSize,
+                    Width = dotSize,
+                    Height = dotSize,
                     Stroke = BrushHitDot,
                     StrokeThickness = 1,
                     IsHitTestVisible = false
@@ -149,6 +218,10 @@ namespace AI_Evlo_Test.Objects
                 _hitDots.Add(dot);
             }
         }
+
+        private static int VisualIndex(int rayIndex, int hitIndex) => rayIndex * RayPerception.HitsPerRay + hitIndex;
+
+        private static int VisualElementCount(int rayCount) => rayCount * RayPerception.HitsPerRay;
 
         private static Brush GetBrushForCategory(ObjectCategory? category)
         {

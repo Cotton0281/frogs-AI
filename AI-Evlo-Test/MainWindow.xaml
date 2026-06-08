@@ -88,7 +88,8 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <!-- Row 0 background strip tinted with the selected population's colour -->
@@ -138,6 +139,18 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
 
                 <!-- Row 3: live population info -->
                 <Label x:Name="lblPopulationInfo" Grid.Row="3" Grid.ColumnSpan="4" Content="Population:" Padding="2,2,3,2" VerticalAlignment="Top"/>
+
+                <!-- Row 4: population behavior settings -->
+                <StackPanel Grid.Row="4" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="5,2,0,0">
+                    <CheckBox x:Name="chkPopulationSpawnDelay"
+                              Content="Spawn Delay" Margin="0,0,12,0" VerticalAlignment="Center"
+                              Checked="ChkPopulationSpawnDelay_Changed" Unchecked="ChkPopulationSpawnDelay_Changed"
+                              ToolTip="When enabled, this population uses delayed respawn. When disabled, it respawns one agent every tick while below its size limit."/>
+                    <CheckBox x:Name="chkPopulationPauseMutation"
+                              Content="Pause Mutation" VerticalAlignment="Center"
+                              Checked="ChkPopulationPauseMutation_Changed" Unchecked="ChkPopulationPauseMutation_Changed"
+                              ToolTip="When enabled, copied regrowth brains are not mutated for this population."/>
+                </StackPanel>
             </Grid>
         </GroupBox>
 

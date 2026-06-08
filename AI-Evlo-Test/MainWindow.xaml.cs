@@ -34,7 +34,6 @@ namespace AI_Evlo_Test
         static readonly Random Rnd = new Random(DateTime.Now.DayOfYear * 1000 + DateTime.Now.Millisecond);
         static readonly object RndLock = new object();
         RandomWeightInitializer randomInit = new RandomWeightInitializer(Rnd);
-        DispatcherTimer Clock = new DispatcherTimer();
         DateTime dtLastLabelsUpdate = DateTime.Now;
 
         //UI definitions
@@ -66,7 +65,13 @@ namespace AI_Evlo_Test
                 _selectedPopulation = value;
                 btnPopulationUpdate.IsEnabled = _selectedPopulation != null;
                 if (_selectedPopulation == null)
+                {
+                    chkPopulationSpawnDelay.IsEnabled = false;
+                    chkPopulationSpawnDelay.IsChecked = false;
+                    chkPopulationPauseMutation.IsEnabled = false;
+                    chkPopulationPauseMutation.IsChecked = false;
                     return;
+                }
 
                 if (_selectedPopulation.ObjectType == null)
                     _selectedPopulation.ObjectType = GetObjectTypeForBeing(_selectedPopulation.Being);
@@ -84,26 +89,33 @@ namespace AI_Evlo_Test
                 ddlPopulationNeuroNetType.UpdateLayout();
 
                 SelectPopulationBeing(_selectedPopulation.Being);
+                chkPopulationSpawnDelay.IsEnabled = true;
+                chkPopulationSpawnDelay.IsChecked = _selectedPopulation.SpawnDelay;
+                chkPopulationPauseMutation.IsEnabled = true;
+                chkPopulationPauseMutation.IsChecked = _selectedPopulation.PauseMutation;
                 rectanglePopulationColor.Fill = new SolidColorBrush()
                 { Color = _selectedPopulation.PopulationColor };
                 groupBoxPopulation.BorderBrush = rectanglePopulationColor.Fill;
             }
         }
 
-        bool boolTickCompleted = true;
-        bool isHeadlessMode = false;
+        volatile bool isHeadlessMode = false;
         int headlessBatchSize = 50;
 
-        bool simulationRunning = false;
-        // Max-speed mode: when the Speed slider is at the far right we drop the
-        // DispatcherTimer (capped at the ~60 Hz system timer resolution) and pump the
-        // simulation continuously through the dispatcher instead — no artificial cap.
-        bool runAtMaxSpeed = false;
-        bool maxPumpScheduled = false;
-        // When true, agents skip rendering this tick. Used to fast-forward the
-        // intermediate ticks of a max-speed batch and paint only the final state.
-        bool suppressAgentRender = false;
-        const int MaxSpeedVisibleBatch = 12;
+        // The simulation runs on its own background thread; the UI thread only renders
+        // snapshots (via CompositionTarget.Rendering). simLock guards every access to the
+        // shared model state (lsObjects, populations, targets) from both threads.
+        private readonly object simLock = new object();
+        private System.Threading.Thread simThread;
+        volatile bool simulationRunning = false;
+        // Per-step sleep in ms, derived from the Speed slider. 0 = run flat-out (max).
+        volatile int simStepDelayMs = 0;
+
+        // Cached canvas size. The model step must never read WPF DependencyProperties
+        // (ActualWidth/ActualHeight throw if touched off the UI thread), so the UI thread
+        // mirrors them here and the simulation reads these instead.
+        double canvasWidth = 1000;
+        double canvasHeight = 600;
 
         // Single reusable instance of the population list window — never open two.
         private PopulationList _populationListForm;
@@ -112,8 +124,8 @@ namespace AI_Evlo_Test
 
             InitializeComponent();
             LoadMovementSettings();
-            Clock.Tick += new EventHandler(Clock_Tick);
             ApplyClockSpeed();
+            CompositionTarget.Rendering += OnRendering;
             lineToTarget = new Line
             {
                 Stroke = Brushes.LightSteelBlue,
@@ -139,60 +151,22 @@ namespace AI_Evlo_Test
             //this.Hide();
         }
 
-        // Timer-driven loop for every speed except the far-right "max" setting.
-        private void Clock_Tick(object sender, EventArgs e)
+        // Paints the latest simulation snapshot every WPF frame (~60 fps) on the UI thread,
+        // independent of how fast the background simulation thread is stepping. All model
+        // reads happen under simLock so the simulation thread can't mutate mid-frame.
+        private void OnRendering(object sender, EventArgs e)
         {
-            if (boolTickCompleted == false)
+            if (isHeadlessMode)
                 return;
 
-            boolTickCompleted = false;
-            RunSimulationBatch(isHeadlessMode ? headlessBatchSize : 1, renderOnlyLast: false);
-            boolTickCompleted = true;
-        }
-
-        // Continuous max-speed pump. Re-posts itself at Background priority so it runs
-        // flat-out when the dispatcher is idle but still yields to input/painting, and is
-        // not throttled by the DispatcherTimer's ~60 Hz resolution.
-        private void PumpMaxSpeed()
-        {
-            if (!simulationRunning || !runAtMaxSpeed)
+            lock (simLock)
             {
-                maxPumpScheduled = false;
-                return;
-            }
+                // Reselect when the inspected agent has died or left the model.
+                if (!TryGetRenderableSelectedSmartObject(out _))
+                    SelectObject(GetTopFitnessObject());
 
-            int iterations = isHeadlessMode ? headlessBatchSize : MaxSpeedVisibleBatch;
-            RunSimulationBatch(iterations, renderOnlyLast: !isHeadlessMode);
-            Dispatcher.BeginInvoke(new Action(PumpMaxSpeed), DispatcherPriority.Background);
-        }
-
-        private void StartMaxPump()
-        {
-            if (maxPumpScheduled)
-                return;
-
-            maxPumpScheduled = true;
-            Dispatcher.BeginInvoke(new Action(PumpMaxSpeed), DispatcherPriority.Background);
-        }
-
-        /// <summary>
-        /// Runs <paramref name="iterations"/> simulation ticks then refreshes UI once.
-        /// When <paramref name="renderOnlyLast"/> is set, agents skip rendering on all but
-        /// the final tick so a batch fast-forwards rather than painting every step.
-        /// </summary>
-        private void RunSimulationBatch(int iterations, bool renderOnlyLast)
-        {
-            for (int tick = 0; tick < iterations; tick++)
-            {
-                suppressAgentRender = renderOnlyLast && tick < iterations - 1;
-                SimulationTick();
-            }
-            suppressAgentRender = false;
-
-            UpdateLabbels();
-
-            if (!isHeadlessMode)
-            {
+                RenderWorld();
+                UpdateLabbels();
                 UpdateRaftAnimation();
 
                 // Draw line to selected agent
@@ -203,6 +177,25 @@ namespace AI_Evlo_Test
                     else
                         drawLine(Target.Location, Target.Location);
                 }
+            }
+        }
+
+        // Background simulation loop. Owns the model and steps it under simLock; the UI thread
+        // only reads the model (for rendering) while holding the same lock.
+        private void SimulationLoop()
+        {
+            while (simulationRunning)
+            {
+                int batch = isHeadlessMode ? headlessBatchSize : 1;
+                lock (simLock)
+                {
+                    for (int i = 0; i < batch && simulationRunning; i++)
+                        SimulationTick();
+                }
+
+                int delay = simStepDelayMs;
+                if (delay > 0)
+                    System.Threading.Thread.Sleep(delay);
             }
         }
 
@@ -252,21 +245,24 @@ namespace AI_Evlo_Test
 
         private void MutateNN()
         {
-            if (SelectedObject == null || SelectedObject.NNetwork == null)
+            lock (simLock)
             {
-                Log("No agent is selected.");
-                return;
+                if (SelectedObject == null || SelectedObject.NNetwork == null)
+                {
+                    Log("No agent is selected.");
+                    return;
+                }
+
+                SelectedObject.NNetwork = evoChember.MutateNN(SelectedObject.NNetwork, 1);
+
+                SelectedObject.NNetwork.Process();
+                double[] dblOutputs = SelectedObject.NNetwork.GetOutputs();
+                string strOutpust = String.Join(",", dblOutputs);
+
+                Log($"NN mutated. New Ouput: {strOutpust}");
+                Log($"Hiden layers: {SelectedObject.NNetwork.HiddenLayers.Count}" +
+                    $" Neurons: {SelectedObject.NNetwork.HiddenLayers[0].NeuronsInLayer.Count}");
             }
-
-            SelectedObject.NNetwork = evoChember.MutateNN(SelectedObject.NNetwork, 1);
-
-            SelectedObject.NNetwork.Process();
-            double[] dblOutputs = SelectedObject.NNetwork.GetOutputs();
-            string strOutpust = String.Join(",", dblOutputs);
-
-            Log($"NN mutated. New Ouput: {strOutpust}");
-            Log($"Hiden layers: {SelectedObject.NNetwork.HiddenLayers.Count}" +
-                $" Neurons: {SelectedObject.NNetwork.HiddenLayers[0].NeuronsInLayer.Count}");
         }
 
         private void TxtLog_TextChanged(object sender, TextChangedEventArgs e)
@@ -290,9 +286,12 @@ namespace AI_Evlo_Test
             {
                 ddlPopulationName.Text = "Ppl_" + (iCnt++).ToString();
             }
-            // create and add members
-            Population newPopulation = CreatePopulation(chosenSize, ddlPopulationName.Text.Trim(), chosenNNType, chosenBeing);
-            RegisterPopulation(newPopulation);
+            // create and add members (under the lock — the simulation thread reads these)
+            lock (simLock)
+            {
+                Population newPopulation = CreatePopulation(chosenSize, ddlPopulationName.Text.Trim(), chosenNNType, chosenBeing);
+                RegisterPopulation(newPopulation);
+            }
         }
 
         /// <summary>
@@ -449,12 +448,25 @@ namespace AI_Evlo_Test
             itemInfo.Click += (s, args) => ShowPopulationListForm(selPopul);
             menu.Items.Add(itemInfo);
 
+            var itemDashboard = new System.Windows.Controls.MenuItem { Header = "Dashboard" };
+            itemDashboard.Click += (s, args) => ShowPopulationDashboard(selPopul);
+            menu.Items.Add(itemDashboard);
+
             var itemGolden = new System.Windows.Controls.MenuItem
             {
                 Header = selPopul.GoldenAgentEnabled ? "Disable Golden agent" : "Enable Golden agent"
             };
             itemGolden.Click += (s, args) => ToggleGoldenAgent(selPopul);
             menu.Items.Add(itemGolden);
+
+            var itemResetBaseline = new System.Windows.Controls.MenuItem
+            {
+                Header = "Reset golden baseline",
+                ToolTip = "Re-anchor the dashboard brain-diff 'initial' snapshot to the current golden brain",
+                IsEnabled = selPopul.GoldenAgentGene != null
+            };
+            itemResetBaseline.Click += (s, args) => ResetGoldenBaseline(selPopul);
+            menu.Items.Add(itemResetBaseline);
 
             menu.Items.Add(new System.Windows.Controls.Separator());
 
@@ -472,14 +484,17 @@ namespace AI_Evlo_Test
             if (population == null)
                 return;
 
-            population.GoldenAgentEnabled = !population.GoldenAgentEnabled;
-            if (population.GoldenAgentEnabled)
-                EnsureGoldenAgent(population);
-            else
-                RemoveGoldenAgent(population);
+            lock (simLock)
+            {
+                population.GoldenAgentEnabled = !population.GoldenAgentEnabled;
+                if (population.GoldenAgentEnabled)
+                    EnsureGoldenAgent(population);
+                else
+                    RemoveGoldenAgent(population);
 
-            SaveSession();
-            UpdateLabbels();
+                SaveSession();
+                UpdateLabbels();
+            }
         }
 
         private void ShowPopulationListForm(Population population)
@@ -518,7 +533,13 @@ namespace AI_Evlo_Test
         private void SelectObject(ISmartObject objNN)
         {
             if (objNN == null || objNN.NNetwork == null)
+            {
+                SelectedObject = null;
+                rayVisualizer?.Hide();
+                UpdateSelectedAgentVisual();
+                UpdateSelectedAgentStats();
                 return;
+            }
             ISmartObject OldSelected = SelectedObject;
             SelectedObject = objNN;
 
@@ -557,6 +578,8 @@ namespace AI_Evlo_Test
             if (senderElement == null)
                 return;
 
+            lock (simLock)
+            {
             if (e.LeftButton == MouseButtonState.Pressed)
             {
                 if (shapeToObjectMap.TryGetValue(senderElement, out ISmartObject newSelectedObject))
@@ -570,6 +593,7 @@ namespace AI_Evlo_Test
                     dif = $"Comparing obj{objClicked.ID} to selected obj{SelectedObject.ID} " + Environment.NewLine + dif;
                     Log(dif);
                 }
+            }
             }
         }
 
@@ -592,30 +616,16 @@ namespace AI_Evlo_Test
         }
 
         /// <summary>
-        /// Maps the "Speed" slider to the run mode. Left = slow, right = fast, so the timer
-        /// interval is the inverse of the value (1 ms floor). At the far-right ("max") the
-        /// timer is dropped entirely in favour of the continuous pump.
+        /// Maps the "Speed" slider to the simulation pacing. Left = slow (longer per-step
+        /// sleep), right = fast; at the far right the sleep is zero so the background loop
+        /// runs flat-out with no timer-resolution cap.
         /// </summary>
         private void ApplyClockSpeed()
         {
             if (sliderSpeed == null)
                 return;
 
-            int interval = (int)Math.Max(1, sliderSpeed.Maximum - sliderSpeed.Value);
-            Clock.Interval = new TimeSpan(0, 0, 0, 0, interval);
-
-            bool atMax = sliderSpeed.Value >= sliderSpeed.Maximum;
-            if (atMax == runAtMaxSpeed)
-                return;
-
-            runAtMaxSpeed = atMax;
-
-            // If running, hand the live simulation over to the other driver immediately.
-            if (simulationRunning)
-            {
-                Clock.Stop();           // the pump self-stops via the runAtMaxSpeed flag
-                StartActiveLoop();
-            }
+            simStepDelayMs = (int)Math.Max(0, sliderSpeed.Maximum - sliderSpeed.Value);
         }
 
         private void BtnClear_Click(object sender, RoutedEventArgs e)
@@ -625,6 +635,8 @@ namespace AI_Evlo_Test
 
         private void PanlUniverseView_Loaded(object sender, RoutedEventArgs e)
         {
+            canvasWidth = panlUniverseView.ActualWidth;
+            canvasHeight = panlUniverseView.ActualHeight;
             InitTargets();
             rayVisualizer = new RayVisualizer(panlUniverseView, 8);
             RestoreOrSeedDefaultScenario();
@@ -632,9 +644,12 @@ namespace AI_Evlo_Test
 
         private void BtnDeleteObject_Click(object sender, RoutedEventArgs e)
         {
-            DisposeObject(SelectedObject);
-            if (lsObjects.Count > 0)
-                SelectObject(lsObjects.First());
+            lock (simLock)
+            {
+                DisposeObject(SelectedObject);
+                if (lsObjects.Count > 0)
+                    SelectObject(lsObjects.First());
+            }
         }
 
         private void BtnVisualNet_Click_1(object sender, RoutedEventArgs e)
@@ -643,13 +658,17 @@ namespace AI_Evlo_Test
             formVisualNet.ParentFormNN = this;
             formVisualNet.VisualizerSendMessage += FormVisualNet_VisualizerSendMessage;
             formVisualNet.Show();
-            if (SelectedObject != null && SelectedObject.NNetwork != null)
+            // Read the live network under the lock — the simulation thread may be stepping it.
+            lock (simLock)
             {
-                formVisualNet.ShowNNet(SelectedObject.NNetwork);
-                formVisualNet.Status = "Neural network of the selected object is loaded.";
+                if (SelectedObject != null && SelectedObject.NNetwork != null)
+                {
+                    formVisualNet.ShowNNet(SelectedObject.NNetwork);
+                    formVisualNet.Status = "Neural network of the selected object is loaded.";
+                }
+                else
+                    formVisualNet.Status = "No neural network is loaded.";
             }
-            else
-                formVisualNet.Status = "No neural network is loaded.";
         }
 
         private void FormVisualNet_VisualizerSendMessage(string Message)
@@ -682,8 +701,13 @@ namespace AI_Evlo_Test
             if (pop == null)
                 return;
 
+            lock (simLock)
+            {
             if (int.TryParse(txtPopulationSize.Text, out int intSize) && intSize > 0)
                 pop.SizeLimit = intSize;
+
+            pop.SpawnDelay = chkPopulationSpawnDelay.IsChecked == true;
+            pop.PauseMutation = chkPopulationPauseMutation.IsChecked == true;
 
             // Read the brain size from the actual selected item (not the unreliable .Text)
             string nnType = (ddlPopulationNeuroNetType.SelectedItem as ListBoxItem)?.Content?.ToString();
@@ -712,6 +736,36 @@ namespace AI_Evlo_Test
             }
 
             SaveSession();
+            }
+        }
+
+        private void ChkPopulationSpawnDelay_Changed(object sender, RoutedEventArgs e)
+        {
+            Population pop = _selectedPopulation;
+            if (pop == null)
+                return;
+
+            lock (simLock)
+            {
+                pop.SpawnDelay = chkPopulationSpawnDelay.IsChecked == true;
+                if (!pop.SpawnDelay)
+                    PopulationRegrowthPolicy.ClearSchedule(pop);
+
+                SaveSession();
+            }
+        }
+
+        private void ChkPopulationPauseMutation_Changed(object sender, RoutedEventArgs e)
+        {
+            Population pop = _selectedPopulation;
+            if (pop == null)
+                return;
+
+            lock (simLock)
+            {
+                pop.PauseMutation = chkPopulationPauseMutation.IsChecked == true;
+                SaveSession();
+            }
         }
 
         /// <summary>
@@ -786,34 +840,39 @@ namespace AI_Evlo_Test
             if (_selectedPopulation == null)
                 return;
 
-            int populationIndex = lsPopulations.FindIndex(p => p.ID == _selectedPopulation.ID);
-
-            RemoveGoldenAgent(_selectedPopulation);
-
-            for (int i = _selectedPopulation.Members.Count - 1; i > -1; i--)
+            // Mutating the shared model (disposing members, removing the population) must be
+            // serialized against the background simulation thread.
+            lock (simLock)
             {
-                DisposeObject(_selectedPopulation.Members[i] as SmartObject);
+                int populationIndex = lsPopulations.FindIndex(p => p.ID == _selectedPopulation.ID);
+
+                RemoveGoldenAgent(_selectedPopulation);
+
+                for (int i = _selectedPopulation.Members.Count - 1; i > -1; i--)
+                {
+                    DisposeObject(_selectedPopulation.Members[i] as SmartObject);
+                }
+
+                Population newSelectedPopul = lsPopulations.FirstOrDefault(p => p.ID != _selectedPopulation.ID);
+                lsPopulations.Remove(_selectedPopulation);
+                _selectedPopulation.Members.Clear();
+                _selectedPopulation = null;
+
+                if (populationIndex >= 0 && populationIndex < lsPopuCards.Count)
+                {
+                    PopulationCard delCard = lsPopuCards[populationIndex];
+                    StackPnlPopulations.Children.Remove(delCard.Root);
+                    lsPopuCards.RemoveAt(populationIndex);
+                }
+
+                // Persist the new set immediately so the deleted population does not reload next
+                // launch, even if the app later exits without firing the Closing handler.
+                SaveSession();
+
+                lblPopulationInfo.Content = "Population:";
+
+                UpdatePopulationsDDL(newSelectedPopul);
             }
-
-            Population newSelectedPopul = lsPopulations.FirstOrDefault(p => p.ID != _selectedPopulation.ID);
-            lsPopulations.Remove(_selectedPopulation);
-            _selectedPopulation.Members.Clear();
-            _selectedPopulation = null;
-
-            if (populationIndex >= 0 && populationIndex < lsPopuCards.Count)
-            {
-                PopulationCard delCard = lsPopuCards[populationIndex];
-                StackPnlPopulations.Children.Remove(delCard.Root);
-                lsPopuCards.RemoveAt(populationIndex);
-            }
-
-            // Persist the new set immediately so the deleted population does not reload next launch,
-            // even if the app later exits without firing the Closing handler.
-            SaveSession();
-
-            lblPopulationInfo.Content = "Population:";
-
-            UpdatePopulationsDDL(newSelectedPopul);
         }
 
         private void WindowEnvirnoment_MouseMove(object sender, MouseEventArgs e)
@@ -835,11 +894,14 @@ namespace AI_Evlo_Test
         private void DdlEnvirnoment_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             ComboBoxItem SelectedItem = (ComboBoxItem)ddlEnvirnoment.SelectedValue;
-            if (SelectedItem.Content.ToString() == "Food is moving" && eEnvironmentType != EEnvironmentType.OneTarget)
-                eEnvironmentType = EEnvironmentType.OneTarget;
-            else if (SelectedItem.Content.ToString().StartsWith("One raft") && eEnvironmentType != EEnvironmentType.TwoTargets)
-                eEnvironmentType = EEnvironmentType.TwoTargets;
-            InitTargets();
+            lock (simLock)
+            {
+                if (SelectedItem.Content.ToString() == "Food is moving" && eEnvironmentType != EEnvironmentType.OneTarget)
+                    eEnvironmentType = EEnvironmentType.OneTarget;
+                else if (SelectedItem.Content.ToString().StartsWith("One raft") && eEnvironmentType != EEnvironmentType.TwoTargets)
+                    eEnvironmentType = EEnvironmentType.TwoTargets;
+                InitTargets();
+            }
         }
 
         private void ImgHelp_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -883,24 +945,9 @@ namespace AI_Evlo_Test
 
         private void ChkHeadless_Changed(object sender, RoutedEventArgs e)
         {
+            // When returning to visual mode, OnRendering reconciles visuals and repaints on the
+            // next frame (under simLock), so no manual re-render loop is needed here.
             isHeadlessMode = chkHeadless.IsChecked == true;
-            if (!isHeadlessMode)
-            {
-                // Re-render all objects when switching back to visual mode
-                foreach (ISmartObject smartObject in lsObjects)
-                {
-                    Population population = lsPopulations.FirstOrDefault(p => p.Members.Contains(smartObject));
-                    EnsureVisualForObject(smartObject, population);
-
-                    if (smartObject.VisibleShape != null)
-                        DrawImage(smartObject.VisibleShape, smartObject.Location);
-                }
-                foreach (TargetObj target in Targets)
-                {
-                    if (target.VisibleShape != null)
-                        DrawImage(target.VisibleShape, target.Location);
-                }
-            }
             Log(isHeadlessMode ? "Headless mode ON — rendering skipped for faster training" : "Headless mode OFF — rendering resumed");
         }
 
@@ -908,6 +955,9 @@ namespace AI_Evlo_Test
 
         private void panlUniverseView_SizeChanged(object sender, SizeChangedEventArgs e)
         {
+            canvasWidth = panlUniverseView.ActualWidth;
+            canvasHeight = panlUniverseView.ActualHeight;
+
             foreach (var targ in Targets)
             {
                 if (targ.Trajectory is Path_spiral)
@@ -926,8 +976,9 @@ namespace AI_Evlo_Test
 
         private void windowEnvirnoment_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            simulationRunning = false;   // also halts the max-speed pump
-            Clock.Stop();
+            simulationRunning = false;   // signal the background loop to stop
+            if (simThread != null && simThread.IsAlive)
+                simThread.Join(1000);
             Objects.WindowBoundsStore.Save("MainWindow", ActualWidth, ActualHeight);
             SaveMovementSettings();
             SaveSession();
@@ -1115,6 +1166,7 @@ namespace AI_Evlo_Test
         {
             pop.ObjectType = GetObjectTypeForBeing(pop.Being);
             pop.NeuroNetTemplate = ResolveRestoredNeuroNetTemplate(pop);
+            DropIncompatibleSavedBrains(pop);
             if (pop.Members == null)
                 pop.Members = new List<ISmartObject>();
             pop.Members.Clear();
@@ -1122,6 +1174,18 @@ namespace AI_Evlo_Test
 
             FillPopulationImmediate(pop, useArchive: true);
             RegisterPopulation(pop);
+        }
+
+        private static void DropIncompatibleSavedBrains(Population pop)
+        {
+            if (pop == null)
+                return;
+
+            if (!Utils.MatchesStructure(pop.GoldenAgentGene, pop.NeuroNetTemplate))
+                pop.ResetGoldenBrain();
+
+            if (pop.lsBestGenes != null)
+                pop.lsBestGenes.RemoveAll(record => !Utils.MatchesStructure(record?.Gene, pop.NeuroNetTemplate));
         }
 
         internal static NeuroNetStructure ResolveRestoredNeuroNetTemplate(Population pop)
@@ -1195,11 +1259,22 @@ namespace AI_Evlo_Test
             if (simulationRunning)
                 return;
 
+            // Make sure any previous loop has fully exited before starting a new one.
+            if (simThread != null && simThread.IsAlive)
+                simThread.Join();
+
             simulationRunning = true;
             btnStart.Content = "⏸ Pause";    // pause glyph
             btnStart.Background = HpOrange;        // amber = running
             Log("Started at " + DateTime.Now.ToShortTimeString());
-            StartActiveLoop();
+
+            simThread = new System.Threading.Thread(SimulationLoop)
+            {
+                IsBackground = true,
+                Priority = System.Threading.ThreadPriority.BelowNormal,
+                Name = "SimulationLoop"
+            };
+            simThread.Start();
         }
 
         private void StopSimulation()
@@ -1207,28 +1282,10 @@ namespace AI_Evlo_Test
             if (!simulationRunning)
                 return;
 
-            simulationRunning = false;
-            Clock.Stop();                          // the max-speed pump self-stops via the flag
+            simulationRunning = false;             // the loop exits after its current step
             btnStart.Content = "▶ Start";    // play glyph
             btnStart.Background = HpGreen;         // green = ready
             Log($"Paused {DateTime.Now.ToShortTimeString()}");
-        }
-
-        /// <summary>Starts whichever driver matches the current speed setting.</summary>
-        private void StartActiveLoop()
-        {
-            if (!simulationRunning)
-                return;
-
-            if (runAtMaxSpeed)
-            {
-                Clock.Stop();
-                StartMaxPump();
-            }
-            else
-            {
-                Clock.Start();
-            }
         }
 
         /// <summary>

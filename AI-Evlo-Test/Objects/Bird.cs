@@ -42,11 +42,9 @@ namespace AI_Evlo_Test.Objects
         public override ObjectCategory SenseCategory => IsLanded ? ObjectCategory.Bird_Landed : ObjectCategory.Bird;
 
         /// <summary>
-        /// Birds can see rafts, frogs, and sharks. Other birds do not obstruct bird vision.
+        /// Birds can see rafts, frogs, sharks, and other birds.
         /// </summary>
-        private static readonly ObjectCategory[] BirdIgnored =
-            { ObjectCategory.Bird, ObjectCategory.Bird_Landed };
-        public override ObjectCategory[] IgnoredCategories => BirdIgnored;
+        public override ObjectCategory[] IgnoredCategories => NoIgnoredCategories;
 
         public override ImageSource GetSpriteFrame() => GetNextSpriteFrame();
 

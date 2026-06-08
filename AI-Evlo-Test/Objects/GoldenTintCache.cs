@@ -9,24 +9,38 @@ namespace AI_Evlo_Test.Objects
     {
         private static readonly object CacheLock = new object();
         private static readonly Dictionary<ImageSource, ImageSource> Cache = new Dictionary<ImageSource, ImageSource>();
+        private static readonly Dictionary<ImageSource, ImageSource> RedCache = new Dictionary<ImageSource, ImageSource>();
 
         public static ImageSource GetTinted(ImageSource source)
+        {
+            return GetTinted(source, Cache, TintGold);
+        }
+
+        public static ImageSource GetRedTinted(ImageSource source)
+        {
+            return GetTinted(source, RedCache, TintRed);
+        }
+
+        private static ImageSource GetTinted(
+            ImageSource source,
+            Dictionary<ImageSource, ImageSource> cache,
+            Action<byte[], int> tintPixel)
         {
             if (!(source is BitmapSource bitmapSource))
                 return source;
 
             lock (CacheLock)
             {
-                if (Cache.TryGetValue(source, out ImageSource cached))
+                if (cache.TryGetValue(source, out ImageSource cached))
                     return cached;
 
-                ImageSource tinted = CreateTinted(bitmapSource);
-                Cache[source] = tinted;
+                ImageSource tinted = CreateTinted(bitmapSource, tintPixel);
+                cache[source] = tinted;
                 return tinted;
             }
         }
 
-        private static ImageSource CreateTinted(BitmapSource source)
+        private static ImageSource CreateTinted(BitmapSource source, Action<byte[], int> tintPixel)
         {
             BitmapSource formatted = source.Format == PixelFormats.Bgra32
                 ? source
@@ -42,9 +56,7 @@ namespace AI_Evlo_Test.Objects
                 if (alpha == 0)
                     continue;
 
-                pixels[i] = (byte)Math.Min(255, pixels[i] * 0.35 + 28);          // B
-                pixels[i + 1] = (byte)Math.Min(255, pixels[i + 1] * 0.55 + 150); // G
-                pixels[i + 2] = (byte)Math.Min(255, pixels[i + 2] * 0.55 + 165); // R
+                tintPixel(pixels, i);
             }
 
             BitmapSource result = BitmapSource.Create(
@@ -58,6 +70,20 @@ namespace AI_Evlo_Test.Objects
                 stride);
             result.Freeze();
             return result;
+        }
+
+        private static void TintGold(byte[] pixels, int offset)
+        {
+            pixels[offset] = (byte)Math.Min(255, pixels[offset] * 0.35 + 28);              // B
+            pixels[offset + 1] = (byte)Math.Min(255, pixels[offset + 1] * 0.55 + 150);     // G
+            pixels[offset + 2] = (byte)Math.Min(255, pixels[offset + 2] * 0.55 + 165);     // R
+        }
+
+        private static void TintRed(byte[] pixels, int offset)
+        {
+            pixels[offset] = (byte)Math.Min(255, pixels[offset] * 0.25 + 24);              // B
+            pixels[offset + 1] = (byte)Math.Min(255, pixels[offset + 1] * 0.25 + 24);      // G
+            pixels[offset + 2] = (byte)Math.Min(255, pixels[offset + 2] * 0.65 + 190);     // R
         }
     }
 }

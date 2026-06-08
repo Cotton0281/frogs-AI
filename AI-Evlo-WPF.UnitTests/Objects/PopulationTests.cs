@@ -237,7 +237,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         {
             // Arrange
             var factory = ArtificialNeuralNetwork.Factories.NeuralNetworkFactory.GetInstance();
-            ArtificialNeuralNetwork.Genes.NeuralNetworkGene largeGene = factory.Create(25, 2, 5, 20).GetGenes();
+            ArtificialNeuralNetwork.Genes.NeuralNetworkGene largeGene = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 5, 20).GetGenes();
             var population = new Population
             {
                 NeuroNetTemplate = null,
@@ -290,12 +290,76 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
+        public void Population_SpawnDelay_DefaultsToTrue()
+        {
+            var population = new Population();
+
+            Assert.IsTrue(population.SpawnDelay);
+        }
+
+        [TestMethod]
+        public void Population_PauseMutation_DefaultsToFalse()
+        {
+            var population = new Population();
+
+            Assert.IsFalse(population.PauseMutation);
+        }
+
+        [TestMethod]
+        public void PopulationRegrowthPolicy_ShouldMutate_UsesPopulationPauseMutationSetting()
+        {
+            Assert.IsFalse(PopulationRegrowthPolicy.ShouldMutate(new Population(), mutationRequested: false));
+            Assert.IsTrue(PopulationRegrowthPolicy.ShouldMutate(new Population(), mutationRequested: true));
+            Assert.IsFalse(PopulationRegrowthPolicy.ShouldMutate(
+                new Population { PauseMutation = true },
+                mutationRequested: true));
+        }
+
+        [TestMethod]
+        public void PopulationRegrowthPolicy_ShouldSpawn_WhenSpawnDelayDisabledAndBelowLimit_ReturnsTrueEveryTick()
+        {
+            var population = new Population { SizeLimit = 5, SpawnDelay = false };
+            population.Members = new List<ISmartObject>
+            {
+                new SmartObject(),
+                new SmartObject()
+            };
+
+            Assert.IsTrue(PopulationRegrowthPolicy.ShouldSpawn(population, currentCycle: 1));
+            Assert.IsTrue(PopulationRegrowthPolicy.ShouldSpawn(population, currentCycle: 2));
+        }
+
+        [TestMethod]
         public void PopulationRegrowthPolicy_ShouldSpawn_WhenBelowLimitAndNotScheduled_ReturnsFalse()
         {
             var population = new Population { SizeLimit = 2 };
             population.Members = new List<ISmartObject> { new SmartObject() };
 
             Assert.IsFalse(PopulationRegrowthPolicy.ShouldSpawn(population, currentCycle: 100));
+        }
+
+        [TestMethod]
+        public void PopulationRegrowthPolicy_LongestLivedMember_ReturnsLiveMemberWithMostCycles()
+        {
+            var factory = NeuralNetworkFactory.GetInstance();
+            var young = new SmartObject
+            {
+                ID = "young",
+                Cycles = 10,
+                NNetwork = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 9)
+            };
+            var old = new SmartObject
+            {
+                ID = "old",
+                Cycles = 30,
+                NNetwork = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 9)
+            };
+            var population = new Population
+            {
+                Members = new List<ISmartObject> { young, old, new SmartObject { Cycles = 100 } }
+            };
+
+            Assert.AreSame(old, PopulationRegrowthPolicy.LongestLivedMember(population));
         }
 
         [TestMethod]
@@ -311,32 +375,52 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         public void PopulationRegrowthPolicy_MarkSpawned_SchedulesNextSpawnByNaturalSurvivalTicksAndAdvancesMode()
         {
             var frogPopulation = new Population { Being = PopulationBeing.Frog, RegrowModeIndex = 4 };
+            var wrappingFrogPopulation = new Population { Being = PopulationBeing.Frog, RegrowModeIndex = 5 };
             var sharkPopulation = new Population { Being = PopulationBeing.Shark };
             var birdPopulation = new Population { Being = PopulationBeing.Bird };
 
             PopulationRegrowthPolicy.MarkSpawned(frogPopulation, currentCycle: 1000);
+            PopulationRegrowthPolicy.MarkSpawned(wrappingFrogPopulation, currentCycle: 1000);
             PopulationRegrowthPolicy.MarkSpawned(sharkPopulation, currentCycle: 1000);
             PopulationRegrowthPolicy.MarkSpawned(birdPopulation, currentCycle: 1000);
 
             Assert.AreEqual(1000 + (int)Math.Ceiling(SmartObject.MaxHp / SmartObject.BaseHpDrain), frogPopulation.NextRegrowCycle);
             Assert.AreEqual(1000 + (int)Math.Ceiling(Shark.SharkMaxHp / Shark.SwimHpDrain), sharkPopulation.NextRegrowCycle);
             Assert.AreEqual(1000 + (int)Math.Ceiling(Bird.BirdMaxHp / Bird.FlightHpDrain), birdPopulation.NextRegrowCycle);
-            Assert.AreEqual(0, frogPopulation.RegrowModeIndex);
+            Assert.AreEqual(5, frogPopulation.RegrowModeIndex);
+            Assert.AreEqual(0, wrappingFrogPopulation.RegrowModeIndex);
+        }
+
+        [TestMethod]
+        public void PopulationRegrowthPolicy_MarkSpawned_WhenSpawnDelayDisabled_AdvancesModeWithoutScheduling()
+        {
+            var population = new Population { SpawnDelay = false, RegrowModeIndex = 5, NextRegrowCycle = 1000 };
+
+            PopulationRegrowthPolicy.MarkSpawned(population, currentCycle: 1000);
+
+            Assert.AreEqual(-1, population.NextRegrowCycle);
+            Assert.AreEqual(0, population.RegrowModeIndex);
         }
 
         [TestMethod]
         public void PopulationRegrowthPolicy_SelectSource_RotatesThroughAvailableSources()
         {
             var factory = NeuralNetworkFactory.GetInstance();
-            NeuralNetworkGene gene = factory.Create(25, 2, 1, 18).GetGenes();
+            NeuralNetworkGene gene = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 18).GetGenes();
             var liveTop = new SmartObject
             {
                 ID = "live-top",
                 Cycles = 50,
-                NNetwork = factory.Create(25, 2, 1, 18)
+                NNetwork = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 18)
+            };
+            var golden = new SmartObject
+            {
+                ID = "golden",
+                NNetwork = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 18)
             };
             var population = new Population
             {
+                GoldenAgent = golden,
                 Members = new List<ISmartObject> { liveTop },
                 lsBestGenes = new List<GenomeRecord>
                 {
@@ -354,6 +438,10 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Assert.AreEqual(RegrowthBrainSourceKind.AliveBestMutated, PopulationRegrowthPolicy.SelectSource(population).Kind);
             population.RegrowModeIndex = 4;
             Assert.AreEqual(RegrowthBrainSourceKind.Random, PopulationRegrowthPolicy.SelectSource(population).Kind);
+            population.RegrowModeIndex = 5;
+            RegrowthBrainSource goldenSource = PopulationRegrowthPolicy.SelectSource(population);
+            Assert.AreEqual(RegrowthBrainSourceKind.GoldenAgentMutated, goldenSource.Kind);
+            Assert.AreSame(golden, goldenSource.AliveParent);
         }
 
         [TestMethod]

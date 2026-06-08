@@ -51,11 +51,10 @@ namespace AI_Evlo_Test.Objects
         public override ObjectCategory SenseCategory => ObjectCategory.Shark;
 
         /// <summary>
-        /// Sharks can see rafts, birds, and frogs in water. Sharks ignore other sharks and
-        /// frogs resting on rafts.
+        /// Sharks can see rafts, birds, frogs in water, and other sharks. They ignore frogs resting on rafts.
         /// </summary>
         private static readonly ObjectCategory[] SharkIgnored =
-            { ObjectCategory.Shark, ObjectCategory.Frog_OnRaft };
+            { ObjectCategory.Frog_OnRaft };
         public override ObjectCategory[] IgnoredCategories => SharkIgnored;
 
         public Shark()

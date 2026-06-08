@@ -109,7 +109,7 @@ When the feature is disabled from the population-card context menu:
 - normal survivor averaging stops
 - persisted golden brain/count data is kept so re-enabling can continue from the same state
 
-Changing a population's species or brain template rebuilds that population and resets the golden brain because old averaged genes may have a different topology.
+Changing a population's species or brain template rebuilds that population and resets the golden brain because old averaged genes may have a different topology. Saved archived or golden genes are loaded only when their input count, output count, hidden-layer count, and hidden-layer size match the current population template.
 
 ## UI and Logging
 

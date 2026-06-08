@@ -1,4 +1,4 @@
-﻿using AI_Evlo_Test.Objects;
+using AI_Evlo_Test.Objects;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
 using System.Windows;
@@ -11,6 +11,8 @@ namespace AI_Evlo_WPF.UnitTests.Objects
     public class RayVisualizerTests
     {
         private Canvas _canvas = null!;
+
+        private const int VisualElementsPerRay = 2;
 
         [TestInitialize]
         public void Setup()
@@ -140,7 +142,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 if (child is Line)
                     lineCount++;
             }
-            Assert.AreEqual(rayCount, lineCount);
+            Assert.AreEqual(rayCount * VisualElementsPerRay, lineCount);
         }
 
         [TestMethod]
@@ -159,7 +161,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 if (child is Ellipse)
                     dotCount++;
             }
-            Assert.AreEqual(rayCount, dotCount);
+            Assert.AreEqual(rayCount * VisualElementsPerRay, dotCount);
         }
 
         [TestMethod]
@@ -204,6 +206,30 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             // Act & Assert - no exception thrown
             visualizer.Draw(agentLocation, null);
+        }
+
+        [TestMethod]
+        public void Draw_WhenPerceptionNull_HidesPreviousRays()
+        {
+            var visualizer = new RayVisualizer(_canvas, 1);
+            var perception = new RayPerception(1, 100, 180, 1.0);
+            perception.Hits[0] = new RayHit
+            {
+                IsValid = true,
+                HitPoint = new Point(100, 100),
+                Category = ObjectCategory.Food
+            };
+
+            visualizer.Draw(new Point(50, 50), perception);
+            visualizer.Draw(new Point(50, 50), null);
+
+            foreach (var child in _canvas.Children)
+            {
+                if (child is Line line)
+                    Assert.AreEqual(Visibility.Collapsed, line.Visibility);
+                if (child is Ellipse dot)
+                    Assert.AreEqual(Visibility.Collapsed, dot.Visibility);
+            }
         }
 
         [TestMethod]
@@ -493,14 +519,14 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             {
                 if (child is Line line)
                 {
-                    if (lineIndex >= 2 && line.Visibility == Visibility.Collapsed)
+                    if (lineIndex >= 2 * VisualElementsPerRay && line.Visibility == Visibility.Collapsed)
                     {
                         collapsedLines++;
                     }
                     lineIndex++;
                 }
             }
-            Assert.AreEqual(3, collapsedLines);
+            Assert.AreEqual(3 * VisualElementsPerRay, collapsedLines);
         }
 
         [TestMethod]
@@ -524,14 +550,14 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             {
                 if (child is Ellipse dot)
                 {
-                    if (dotIndex >= 2 && dot.Visibility == Visibility.Collapsed)
+                    if (dotIndex >= 2 * VisualElementsPerRay && dot.Visibility == Visibility.Collapsed)
                     {
                         collapsedDots++;
                     }
                     dotIndex++;
                 }
             }
-            Assert.AreEqual(3, collapsedDots);
+            Assert.AreEqual(3 * VisualElementsPerRay, collapsedDots);
         }
 
         [TestMethod]
@@ -562,7 +588,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 if (child is Line)
                     lineCount++;
             }
-            Assert.AreEqual(4, lineCount);
+            Assert.AreEqual(4 * VisualElementsPerRay, lineCount);
         }
 
         // Clear Method Tests
@@ -649,6 +675,59 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             var line = _canvas.Children.OfType<Line>().First();
             Assert.AreEqual(System.Windows.Media.Brushes.Gold, line.Stroke);
+        }
+
+        [TestMethod]
+        public void Draw_WithSecondPerceptionHit_DrawsSecondLayerSegmentAndDot()
+        {
+            var visualizer = new RayVisualizer(_canvas, 1);
+            var perception = new RayPerception(1, 100, 0, 1.0);
+            var objects = new List<SensableSnapshot>
+            {
+                new SensableSnapshot("raft", new Point(20, 0), 10, ObjectCategory.Raft),
+                new SensableSnapshot("shark", new Point(40, 0), 10, ObjectCategory.Shark)
+            };
+
+            perception.Update(new Point(0, 0), new Vector(1, 0), objects);
+            visualizer.Draw(new Point(0, 0), perception);
+
+            var lines = _canvas.Children.OfType<Line>().ToArray();
+            var dots = _canvas.Children.OfType<Ellipse>().ToArray();
+
+            Assert.HasCount(2, lines);
+            Assert.AreEqual(Visibility.Visible, lines[0].Visibility);
+            Assert.AreEqual(Visibility.Visible, lines[1].Visibility);
+            Assert.AreSame<System.Windows.Media.Brush>(System.Windows.Media.Brushes.DodgerBlue, lines[0].Stroke);
+            Assert.AreSame<System.Windows.Media.Brush>(System.Windows.Media.Brushes.Crimson, lines[1].Stroke);
+            Assert.IsNotNull(lines[1].StrokeDashArray);
+            Assert.IsGreaterThan(0, lines[1].StrokeDashArray.Count);
+
+            Assert.AreEqual(Visibility.Visible, dots[0].Visibility);
+            Assert.AreEqual(Visibility.Visible, dots[1].Visibility);
+            Assert.AreSame<System.Windows.Media.Brush>(System.Windows.Media.Brushes.DodgerBlue, dots[0].Fill);
+            Assert.AreSame<System.Windows.Media.Brush>(System.Windows.Media.Brushes.Crimson, dots[1].Fill);
+        }
+
+        [TestMethod]
+        public void Draw_WithoutSecondPerceptionHit_CollapsesSecondLayer()
+        {
+            var visualizer = new RayVisualizer(_canvas, 1);
+            var perception = new RayPerception(1, 100, 0, 1.0);
+            var objects = new List<SensableSnapshot>
+            {
+                new SensableSnapshot("raft", new Point(20, 0), 10, ObjectCategory.Raft)
+            };
+
+            perception.Update(new Point(0, 0), new Vector(1, 0), objects);
+            visualizer.Draw(new Point(0, 0), perception);
+
+            var lines = _canvas.Children.OfType<Line>().ToArray();
+            var dots = _canvas.Children.OfType<Ellipse>().ToArray();
+
+            Assert.AreEqual(Visibility.Visible, lines[0].Visibility);
+            Assert.AreEqual(Visibility.Collapsed, lines[1].Visibility);
+            Assert.AreEqual(Visibility.Visible, dots[0].Visibility);
+            Assert.AreEqual(Visibility.Collapsed, dots[1].Visibility);
         }
     }
 }

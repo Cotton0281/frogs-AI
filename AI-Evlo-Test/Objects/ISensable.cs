@@ -38,4 +38,23 @@ namespace AI_Evlo_Test.Objects
         double Size { get; set; }
         ObjectCategory Category { get; set; }
     }
+
+    /// <summary>
+    /// Immutable per-tick copy of the sensable state used by background raycasting.
+    /// </summary>
+    public struct SensableSnapshot
+    {
+        public SensableSnapshot(string id, Point location, double size, ObjectCategory category)
+        {
+            Id = id;
+            Location = location;
+            Size = size;
+            Category = category;
+        }
+
+        public string Id { get; }
+        public Point Location { get; }
+        public double Size { get; }
+        public ObjectCategory Category { get; }
+    }
 }

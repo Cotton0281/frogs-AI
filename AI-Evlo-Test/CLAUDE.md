@@ -5,26 +5,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Run
 
 ```bash
-# Restore NuGet packages
-nuget restore AI-Evlo-WPF.sln
+# Restore packages
+dotnet restore AI-Evlo-WPF.sln
 
 # Build (from solution root: D:\projects\AIlib\AI-Evlo-WPF)
-msbuild AI-Evlo-WPF.sln /p:Configuration=Release /p:Platform="Any CPU"
+dotnet build AI-Evlo-WPF.sln -c Release
 
 # Output executable
 bin\Release\ML-Evolutions.exe
 ```
 
-**Target**: .NET Framework 4.7.2 | **Output**: WinExe | **Assembly Name**: ML-Evolutions | **Root Namespace**: AI_Evlo_Test
+**Target**: .NET 10 Windows | **Output**: WinExe | **Assembly Name**: ML-Evolutions | **Root Namespace**: AI_Evlo_Test
 
 ### Tests
 
-MSTest suite in the sibling project `AI-Evlo-WPF.UnitTests` (`bin\Debug\net472\AI-Evlo-WPF.UnitTests.dll`).
-Run with `vstest.console.exe <dll>`. Note: a number of tests fail independently of app
-correctness — several `SmartObjectTests.Act_*` call `Assert.IsGreaterThan/IsLessThan` with the
-arguments in `(actual, expected)` order, but the current MSTest overload is
-`(lowerBound, value)`, so they assert backwards; the `VisualizeNetwork` `ShowNNet_*` tests need a
-rendering host. Treat the current pass count as the regression baseline rather than expecting 100% green.
+MSTest suite in the sibling project `AI-Evlo-WPF.UnitTests`. Run all tests from the solution root:
+
+```bash
+dotnet test AI-Evlo-WPF.sln
+```
 
 ## Architecture
 
@@ -72,8 +71,9 @@ Species differences are expressed by overriding virtual hooks on `SmartObject`
 ### Neural Network System
 
 Configured via `NeuroNetStructure` (`Objects/Configs.cs`) with presets: `Small_1Lx9N()`,
-`Mid_3Lx10N()`, `Big_5Lx20N()`. NN inputs = 1 scalar (HP deficit) + 12 rays × 2
-(distance + object-type signal) = 25. Outputs = 2 (rotation, thrust).
+`Mid_3Lx10N()`, `Big_5Lx20N()`. NN inputs = 1 scalar (HP deficit) + 2 recurrent
+memory values + 12 rays x 2 distinct-category hits x 2 values (distance + object type)
+= 51. Outputs = 4 (rotation, thrust, memory0, memory1).
 
 Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` → `NeuronFactory`
 → `SomaFactory` + `AxonFactory` (Tanh) + `SynapseFactory`.
@@ -105,6 +105,17 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` �
 | `MainWindow.AgentFactory.cs` | Agent/shape creation, offspring, disposal, population re-growth |
 | `PopulationList.cs` | Population statistics viewer (WinForms DataGrid) |
 | `VisualizeNetwork.cs` | Neural-network topology visualization (WinForms) |
+| `PopulationDashboard.cs` | Per-population dashboard (WinForms): live charts, golden-agent stats, initial-vs-current brain diff |
+| `MainWindow.Dashboard.cs` | Dashboard host: context-menu entry, attaches/detaches the stats collector, builds snapshots under `simLock` |
+| `Controls/SparklineChart.cs` | Dependency-free GDI line/bar/histogram chart |
+| `Controls/GeneDeltaNetworkView.cs` | Gene-driven NN view colour-coding change (black→red) between two genes |
+| `Objects/PopulationStats.cs` | Runtime-only, attach-on-demand history collector for one population |
+
+The dashboard is opened from the population-card right-click menu ("Dashboard"). It is **attach-on-demand**:
+opening it sets `Population.Stats` (a `PopulationStats` collector) under `simLock`; closing it clears it.
+While closed, the per-tick cost is a single `pop.Stats?.` null-check and no history is buffered. The brain
+diff compares `GoldenInitialGene` (snapshot of the first survivor that seeded the golden brain) against the
+current `GoldenAgentGene`.
 
 ### Environment Modes (`EEnvironmentType` in `Objects/Enumerators.cs`)
 
@@ -125,4 +136,13 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` �
 - JSON serialization via Newtonsoft.Json attributes on domain objects.
 - Extension methods in `Extentions/NeuralNetworkGene.cs` for neural-network gene manipulation.
 - The per-tick loop uses `Parallel.ForEach` over agents; keep `Act`/perception free of UI calls.
+- **Threading model**: the simulation runs on a background thread (`SimulationLoop` in
+  `MainWindow.xaml.cs`); the UI thread only renders snapshots via `CompositionTarget.Rendering`
+  (`OnRendering`). A single `simLock` guards all shared model state (`lsObjects`, populations,
+  `Targets`). Rules: (1) the model step (`SimulationTick` and everything it calls) must never
+  touch WPF or read DependencyProperties — use the cached `canvasWidth`/`canvasHeight` instead of
+  `ActualWidth`/`ActualHeight`; (2) agent visuals are created/removed only on the UI thread —
+  the model creates agents with `VisibleShape == null` and `ReconcileVisuals` builds them (and
+  drains `_visualsToRemove` for disposed ones) each frame; (3) any UI handler that mutates model
+  state must take `lock (simLock)`. The Speed slider sets `simStepDelayMs` (0 = run flat-out).
   UI updates (sprites, transforms, ray visualizer) run only when `isHeadlessMode` is false.

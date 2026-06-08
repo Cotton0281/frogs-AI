@@ -118,7 +118,12 @@ namespace AI_Evlo_Test.Objects
         static public int MaxHp { get; set; } = 300;
         public static double MaxSpeed { get; set; } = 1.5;
         public static MovementSettings MovementSettings { get; set; } = new MovementSettings();
-        public const double BaseHpDrain = 0.2;
+        public const double BaseHpDrain = 0.35;
+        public const int MemorySize = 2;
+        public const int MovementOutputCount = 2;
+        public const int OutputCount = MovementOutputCount + MemorySize;
+        public const int ExtraInputCount = 1 + MemorySize;
+        public const int InputCount = ExtraInputCount + RayPerception.DefaultInputCount;
 
         /// <summary>Actual movement magnitude from the last tick.</summary>
         public double LastSpeed { get; set; } = 0;
@@ -132,6 +137,7 @@ namespace AI_Evlo_Test.Objects
         public bool IsGoldenAgent { get; set; } = false;
         public int NextGoldenAverageCycle { get; set; } = 0;
         public int GoldenAverageIntervalTicks { get; set; } = 0;
+        public DateTime GoldenMergeFlashUntilUtc { get; private set; } = DateTime.MinValue;
         public double Fitness { get { return Cycles - Ofsprings; } }
 
         /// <summary>Per-instance HP ceiling. Override in subclasses to raise the cap.</summary>
@@ -142,6 +148,13 @@ namespace AI_Evlo_Test.Objects
             HP < EffectiveMaxHp * (MovementSettings ?? new MovementSettings()).PredatorBiteHpThreshold;
 
         public int BiteCooldownTicksRemaining { get; set; }
+
+        public bool IsGoldenMergeFlashActive => DateTime.UtcNow < GoldenMergeFlashUntilUtc;
+
+        public void TriggerGoldenMergeFlash()
+        {
+            GoldenMergeFlashUntilUtc = DateTime.UtcNow.AddMilliseconds(200);
+        }
 
         public void TickBiteCooldown()
         {
@@ -156,14 +169,11 @@ namespace AI_Evlo_Test.Objects
         public virtual ObjectCategory SenseCategory => ObjectCategory.Frog;
 
         /// <summary>
-        /// Categories this agent's own rays cannot perceive. Null means "sees everything".
-        /// Base agents (frogs) cannot see other frogs.
+        /// Categories this agent's own rays cannot perceive. Empty means "sees everything".
         /// </summary>
-        public virtual ObjectCategory[] IgnoredCategories => FrogIgnoredCategories;
+        public virtual ObjectCategory[] IgnoredCategories => NoIgnoredCategories;
 
-        /// <summary>Shared "frogs can't see frogs" filter to avoid per-tick allocation.</summary>
-        protected static readonly ObjectCategory[] FrogIgnoredCategories =
-            { ObjectCategory.Frog, ObjectCategory.Frog_OnRaft };
+        protected static readonly ObjectCategory[] NoIgnoredCategories = new ObjectCategory[0];
 
         /// <summary>
         /// Returns the sprite frame to display this tick, or null for shape-based agents.
@@ -191,7 +201,12 @@ namespace AI_Evlo_Test.Objects
         public bool IsGettingHP { get; set; } = false;
 
         private double[] _cachedInputs;
-        public double[] CachedInputs => _cachedInputs ?? (_cachedInputs = new double[Perception.Signals.Length + 1]);
+        public double[] CachedInputs => _cachedInputs ?? (_cachedInputs = new double[Perception.Signals.Length + ExtraInputCount]);
+
+        /// <summary>
+        /// Last tick's recurrent scratchpad values, fed back as neural-network inputs.
+        /// </summary>
+        public double[] Memory { get; private set; } = new double[MemorySize];
 
         private double _hP;
 
@@ -210,8 +225,8 @@ namespace AI_Evlo_Test.Objects
             NNetwork.Process();
             dblOutputs = NNetwork.GetOutputs();
 
-            double rotationRequest = dblOutputs[0] * 3;
-            double thrustRequest = dblOutputs[1] + 0.5;
+            double rotationRequest = dblOutputs.Length > 0 ? dblOutputs[0] * 3 : 0;
+            double thrustRequest = dblOutputs.Length > 1 ? dblOutputs[1] + 0.5 : 0;
             double thrustApplied = ClampThrust(thrustRequest);
 
             this.Rotate(rotationRequest);
@@ -219,8 +234,23 @@ namespace AI_Evlo_Test.Objects
             LastSpeed = Math.Abs(thrustApplied);
             LastRotation = rotationRequest;
             ApplyMovementHpCost(rotationRequest, thrustApplied);
+            WriteMemoryOutputs(dblOutputs);
 
             return dblOutputs;
+        }
+
+        public void ResetMemory()
+        {
+            Array.Clear(Memory, 0, Memory.Length);
+        }
+
+        private void WriteMemoryOutputs(double[] outputs)
+        {
+            for (int i = 0; i < MemorySize; i++)
+            {
+                int outputIndex = MovementOutputCount + i;
+                Memory[i] = outputs != null && outputIndex < outputs.Length ? outputs[outputIndex] : 0;
+            }
         }
 
         private double ClampThrust(double thrustRequest)

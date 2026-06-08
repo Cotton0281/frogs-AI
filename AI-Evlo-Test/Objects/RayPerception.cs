@@ -15,13 +15,18 @@ namespace AI_Evlo_Test.Objects
     /// </summary>
     public class RayPerception
     {
+        public const int DefaultRayCount = 12;
+        public const int HitsPerRay = 2;
+        public const int ValuesPerHit = 2;
+        public const int DefaultInputCount = DefaultRayCount * HitsPerRay * ValuesPerHit;
+
         public int RayCount { get; }
         public double MaxDistance { get; }
         public double FieldOfView { get; }
 
         /// <summary>
         /// Per-ray results. Length = RayCount * 2.
-        /// Layout: [ray0_distance, ray0_type, ray1_distance, ray1_type, ...]
+        /// Layout: [ray0_hit0_distance, ray0_hit0_type, ray0_hit1_distance, ray0_hit1_type, ...]
         /// </summary>
         public double[] Signals { get; }
 
@@ -40,9 +45,9 @@ namespace AI_Evlo_Test.Objects
         /// <summary>Pre-computed sine for each ray angle.</summary>
         private double[] RaySin { get; }
 
-        private readonly double[] _closestDists;
-        private readonly ObjectCategory[] _closestTypes;
-        private readonly bool[] _hitSomethings;
+        private readonly double[,] _hitDists;
+        private readonly ObjectCategory[,] _hitTypes;
+        private readonly bool[,] _hitSomethings;
         private readonly double[] _rayDirsX;
         private readonly double[] _rayDirsY;
 
@@ -51,20 +56,27 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         public RayHit[] Hits { get; }
 
-        public RayPerception(int rayCount = 12, double maxDistance = 250, double fieldOfView = 180, double centerRayMultiplier = 1.0)
+        /// <summary>
+        /// Per-ray, per-layer hit info. Layer 0 is the closest category; layer 1 is the
+        /// nearest different category behind or beyond it.
+        /// </summary>
+        public RayHit[,] HitLayers { get; }
+
+        public RayPerception(int rayCount = DefaultRayCount, double maxDistance = 250, double fieldOfView = 180, double centerRayMultiplier = 1.0)
         {
             RayCount = rayCount;
             MaxDistance = maxDistance;
             FieldOfView = fieldOfView;
-            Signals = new double[rayCount * 2];
+            Signals = new double[rayCount * HitsPerRay * ValuesPerHit];
             RayAngles = new double[rayCount];
             MaxDistances = new double[rayCount];
             RayCos = new double[rayCount];
             RaySin = new double[rayCount];
             Hits = new RayHit[rayCount];
-            _closestDists = new double[rayCount];
-            _closestTypes = new ObjectCategory[rayCount];
-            _hitSomethings = new bool[rayCount];
+            HitLayers = new RayHit[rayCount, HitsPerRay];
+            _hitDists = new double[rayCount, HitsPerRay];
+            _hitTypes = new ObjectCategory[rayCount, HitsPerRay];
+            _hitSomethings = new bool[rayCount, HitsPerRay];
             _rayDirsX = new double[rayCount];
             _rayDirsY = new double[rayCount];
 
@@ -131,7 +143,7 @@ namespace AI_Evlo_Test.Objects
         /// <param name="selfId">Agent's own ID so it skips itself.</param>
         /// <param name="ignoredCategories">Categories invisible to this agent's rays.</param>
         public void Update(Point agentLocation, Vector agentFacing,
-            IList<ISensable> sensableObjects, string selfId = null,
+            IReadOnlyList<SensableSnapshot> sensableObjects, string selfId = null,
             ObjectCategory[] ignoredCategories = null)
         {
             Array.Clear(Signals, 0, Signals.Length);
@@ -149,17 +161,20 @@ namespace AI_Evlo_Test.Objects
                 double sin = RaySin[r];
                 _rayDirsX[r] = forward.X * cos - forward.Y * sin;
                 _rayDirsY[r] = forward.X * sin + forward.Y * cos;
-                _closestDists[r] = MaxDistances[r];
-                _closestTypes[r] = ObjectCategory.Food;
-                _hitSomethings[r] = false;
+                for (int h = 0; h < HitsPerRay; h++)
+                {
+                    _hitDists[r, h] = MaxDistances[r];
+                    _hitTypes[r, h] = ObjectCategory.Food;
+                    _hitSomethings[r, h] = false;
+                }
             }
 
             for (int s = 0; s < sensableCount; s++)
             {
-                ISensable obj = sensableObjects[s];
+                SensableSnapshot obj = sensableObjects[s];
 
                 // Skip self
-                if (selfId != null && obj is ISmartObject smart && smart.ID == selfId)
+                if (selfId != null && obj.Id == selfId)
                     continue;
 
                 // Skip categories this agent cannot perceive
@@ -188,7 +203,7 @@ namespace AI_Evlo_Test.Objects
 
                 for (int r = 0; r < RayCount; r++)
                 {
-                    double maxDist = _closestDists[r];
+                    double maxDist = MaxDistances[r];
                     double maxRange = maxDist + radius;
 
                     if (ocLenSq > maxRange * maxRange)
@@ -209,46 +224,113 @@ namespace AI_Evlo_Test.Objects
                     if (hitDist < 0) hitDist = 0; // ray starts inside the circle
 
                     if (hitDist <= maxDist)
-                    {
-                        _closestDists[r] = hitDist;
-                        _closestTypes[r] = category;
-                        _hitSomethings[r] = true;
-                    }
+                        AddDistinctCategoryHit(r, hitDist, category);
                 }
             }
 
             for (int r = 0; r < RayCount; r++)
             {
-                int idx = r * 2;
                 double rayMaxDist = MaxDistances[r];
-                double closestDist = _closestDists[r];
                 double rayDirX = _rayDirsX[r];
                 double rayDirY = _rayDirsY[r];
 
-                if (_hitSomethings[r])
+                for (int h = 0; h < HitsPerRay; h++)
                 {
-                    // 1.0 = touching, 0.0 = at max range
-                    Signals[idx] = 1.0 - (closestDist / rayMaxDist);
-                    Signals[idx + 1] = _closestTypes[r].ToSignalValue();
+                    int idx = ((r * HitsPerRay) + h) * ValuesPerHit;
 
-                    Hits[r] = new RayHit
+                    if (_hitSomethings[r, h])
                     {
-                        IsValid = true,
-                        HitPoint = new Point(originX + (rayDirX * closestDist), originY + (rayDirY * closestDist)),
-                        Category = _closestTypes[r],
-                        Distance = closestDist
-                    };
+                        double hitDist = _hitDists[r, h];
+                        ObjectCategory hitType = _hitTypes[r, h];
+
+                        // 1.0 = touching, 0.0 = at max range
+                        Signals[idx] = 1.0 - (hitDist / rayMaxDist);
+                        Signals[idx + 1] = hitType.ToSignalValue();
+
+                        HitLayers[r, h] = new RayHit
+                        {
+                            IsValid = true,
+                            HitPoint = new Point(originX + (rayDirX * hitDist), originY + (rayDirY * hitDist)),
+                            Category = hitType,
+                            Distance = hitDist
+                        };
+                    }
+                    else
+                    {
+                        // Both signals stay 0.0 (nothing detected)
+                        HitLayers[r, h] = new RayHit
+                        {
+                            IsValid = true,
+                            HitPoint = new Point(originX + (rayDirX * rayMaxDist), originY + (rayDirY * rayMaxDist)),
+                            Category = null,
+                            Distance = rayMaxDist
+                        };
+                    }
                 }
-                else
+
+                Hits[r] = HitLayers[r, 0];
+            }
+        }
+
+        private void AddDistinctCategoryHit(int rayIndex, double distance, ObjectCategory category)
+        {
+            for (int h = 0; h < HitsPerRay; h++)
+            {
+                if (_hitSomethings[rayIndex, h] && _hitTypes[rayIndex, h] == category)
                 {
-                    // Both signals stay 0.0 (nothing detected)
-                    Hits[r] = new RayHit
+                    if (distance < _hitDists[rayIndex, h])
                     {
-                        IsValid = true,
-                        HitPoint = new Point(originX + (rayDirX * rayMaxDist), originY + (rayDirY * rayMaxDist)),
-                        Category = null,
-                        Distance = rayMaxDist
-                    };
+                        _hitDists[rayIndex, h] = distance;
+                        SortRayHits(rayIndex);
+                    }
+                    return;
+                }
+            }
+
+            for (int h = 0; h < HitsPerRay; h++)
+            {
+                if (!_hitSomethings[rayIndex, h])
+                {
+                    _hitDists[rayIndex, h] = distance;
+                    _hitTypes[rayIndex, h] = category;
+                    _hitSomethings[rayIndex, h] = true;
+                    SortRayHits(rayIndex);
+                    return;
+                }
+            }
+
+            int last = HitsPerRay - 1;
+            if (distance < _hitDists[rayIndex, last])
+            {
+                _hitDists[rayIndex, last] = distance;
+                _hitTypes[rayIndex, last] = category;
+                _hitSomethings[rayIndex, last] = true;
+                SortRayHits(rayIndex);
+            }
+        }
+
+        private void SortRayHits(int rayIndex)
+        {
+            for (int i = 0; i < HitsPerRay - 1; i++)
+            {
+                for (int j = i + 1; j < HitsPerRay; j++)
+                {
+                    bool swap = _hitSomethings[rayIndex, j]
+                        && (!_hitSomethings[rayIndex, i] || _hitDists[rayIndex, j] < _hitDists[rayIndex, i]);
+                    if (!swap)
+                        continue;
+
+                    double dist = _hitDists[rayIndex, i];
+                    ObjectCategory type = _hitTypes[rayIndex, i];
+                    bool hit = _hitSomethings[rayIndex, i];
+
+                    _hitDists[rayIndex, i] = _hitDists[rayIndex, j];
+                    _hitTypes[rayIndex, i] = _hitTypes[rayIndex, j];
+                    _hitSomethings[rayIndex, i] = _hitSomethings[rayIndex, j];
+
+                    _hitDists[rayIndex, j] = dist;
+                    _hitTypes[rayIndex, j] = type;
+                    _hitSomethings[rayIndex, j] = hit;
                 }
             }
         }
@@ -270,10 +352,17 @@ namespace AI_Evlo_Test.Objects
         /// <summary>
         /// Fills the provided buffer with the given extras prepended and then the ray signals.
         /// </summary>
-        public void FillInputs(double[] buffer, double hpDeficit)
+        public void FillInputs(double[] buffer, double hpDeficit, double[] memory)
         {
             buffer[0] = hpDeficit;
-            Array.Copy(Signals, 0, buffer, 1, Signals.Length);
+            int offset = 1;
+            Array.Clear(buffer, offset, SmartObject.MemorySize);
+            if (memory != null && memory.Length > 0)
+            {
+                Array.Copy(memory, 0, buffer, offset, Math.Min(memory.Length, SmartObject.MemorySize));
+            }
+            offset += SmartObject.MemorySize;
+            Array.Copy(Signals, 0, buffer, offset, Signals.Length);
         }
     }
 

@@ -25,6 +25,45 @@ namespace AI_Evlo_Test
         private const int ZIndexFrog = 1;
         private const int ZIndexBird = 10;
 
+        // Visuals whose agent was disposed by the model step, awaiting removal on the UI thread.
+        private readonly List<FrameworkElement> _visualsToRemove = new List<FrameworkElement>();
+
+        /// <summary>Queues an agent's shape for removal. Safe to call from the simulation thread.</summary>
+        private void QueueVisualRemoval(FrameworkElement shape)
+        {
+            if (shape != null)
+                _visualsToRemove.Add(shape);
+        }
+
+        /// <summary>
+        /// UI-thread visual reconciliation: removes shapes of disposed agents and creates shapes
+        /// for newly spawned ones. Lets the model step stay free of any WPF calls.
+        /// </summary>
+        private void ReconcileVisuals()
+        {
+            for (int i = 0; i < _visualsToRemove.Count; i++)
+            {
+                FrameworkElement shape = _visualsToRemove[i];
+                shape.MouseDown -= ObjectInterface_MouseDown;
+                shapeToObjectMap.Remove(shape);
+                panlUniverseView.Children.Remove(shape);
+            }
+            _visualsToRemove.Clear();
+
+            for (int i = 0; i < lsObjects.Count; i++)
+            {
+                ISmartObject o = lsObjects[i];
+                if (o.VisibleShape != null)
+                    continue;
+
+                EnsureVisualForObject(o, FindPopulationForObject(o));
+                if (o is SmartObject s && s.IsGoldenAgent)
+                    ApplyGoldenVisual(o);
+                if (o.VisibleShape != null)
+                    DrawImage(o.VisibleShape, o.Location);
+            }
+        }
+
         private Population CreatePopulation(int PopulationSize, string PopulationName, string nnType, PopulationBeing being)
         {
             if (PopulationSize < 1)
@@ -80,6 +119,16 @@ namespace AI_Evlo_Test
                 return false;
             }
 
+            if (!population.SpawnDelay)
+            {
+                RegrowthBrainSource immediateSource = PopulationRegrowthPolicy.SelectSource(population);
+                ISmartObject immediateMember = CreateRegrowthMember(population, immediateSource);
+                ApplyImmediateSpawnLocation(immediateMember, population);
+                AddPopulationMember(population, immediateMember);
+                PopulationRegrowthPolicy.MarkSpawned(population, currentCycle);
+                return true;
+            }
+
             if (population.NextRegrowCycle < 0)
             {
                 PopulationRegrowthPolicy.ScheduleNextSpawn(population, currentCycle);
@@ -129,9 +178,20 @@ namespace AI_Evlo_Test
                     return CreateFromAliveParent(population, source.AliveParent, mutate: false);
                 case RegrowthBrainSourceKind.AliveBestMutated:
                     return CreateFromAliveParent(population, source.AliveParent, mutate: true);
+                case RegrowthBrainSourceKind.GoldenAgentMutated:
+                    return CreateFromAliveParent(population, source.AliveParent, mutate: true);
                 default:
                     return CreatePopulationMember(population);
             }
+        }
+
+        private static void ApplyImmediateSpawnLocation(ISmartObject newObj, Population population)
+        {
+            ISmartObject locationSource = PopulationRegrowthPolicy.LongestLivedMember(population);
+            if (newObj == null || locationSource == null)
+                return;
+
+            newObj.SetLocation(locationSource.Location.X, locationSource.Location.Y);
         }
 
         private ISmartObject CreateFromArchivedGene(Population population, GenomeRecord parent, bool mutate)
@@ -139,9 +199,12 @@ namespace AI_Evlo_Test
             if (parent == null || parent.Gene == null)
                 return CreatePopulationMember(population);
 
+            if (!Utils.MatchesStructure(parent.Gene, population.NeuroNetTemplate))
+                return CreatePopulationMember(population);
+
             NeuralNetworkFactory nNetworkFactory = NeuralNetworkFactory.GetInstance();
             INeuralNetwork network = nNetworkFactory.Create(Utils.CloneGene(parent.Gene));
-            if (mutate)
+            if (PopulationRegrowthPolicy.ShouldMutate(population, mutate))
                 network = evoChember.MutateNN(network, 1, false);
 
             ISmartObject newObj = CreatePopulationMember(population);
@@ -155,19 +218,28 @@ namespace AI_Evlo_Test
 
         private ISmartObject CreateFromAliveParent(Population population, ISmartObject parent, bool mutate)
         {
+            return CreateFromAliveParent(population, parent, mutate, spawnAtParentLocation: false);
+        }
+
+        private ISmartObject CreateFromAliveParent(
+            Population population,
+            ISmartObject parent,
+            bool mutate,
+            bool spawnAtParentLocation)
+        {
             if (parent == null || parent.NNetwork == null)
                 return CreatePopulationMember(population);
 
             INeuralNetwork network = Utils.CloneNeuroNet(parent.NNetwork);
-            if (mutate)
+            if (PopulationRegrowthPolicy.ShouldMutate(population, mutate))
                 network = evoChember.MutateNN(network, 1, false);
 
             ISmartObject newObj = CreatePopulationMember(population);
             newObj.NNetwork = network;
-            newObj.SetLocation(parent.Location.X + 1, parent.Location.Y + 1);
-            if (!isHeadlessMode && newObj.VisibleShape != null)
-                DrawImage(newObj.VisibleShape, newObj.Location);
-
+            newObj.SetLocation(
+                spawnAtParentLocation ? parent.Location.X : parent.Location.X + 1,
+                spawnAtParentLocation ? parent.Location.Y : parent.Location.Y + 1);
+            // Visual is created lazily by ReconcileVisuals on the UI thread.
             newObj.Generation = parent.Generation + 1;
             newObj.ParentId = parent.ID;
             newObj.ID = population.GenerateMemberId(parent);
@@ -197,7 +269,7 @@ namespace AI_Evlo_Test
         private void SpawnGoldenAgent(Population population)
         {
             ISmartObject goldenAgent = CreatePopulationMember(population);
-            if (population.GoldenAgentGene != null)
+            if (Utils.MatchesStructure(population.GoldenAgentGene, population.NeuroNetTemplate))
                 goldenAgent.NNetwork = NeuralNetworkFactory.GetInstance().Create(Utils.CloneGene(population.GoldenAgentGene));
 
             goldenAgent.ID = population.Name + "::Golden";
@@ -206,7 +278,7 @@ namespace AI_Evlo_Test
             if (goldenAgent is SmartObject smart)
                 smart.IsGoldenAgent = true;
 
-            ApplyGoldenVisual(goldenAgent);
+            // The golden tint/glow is applied by ReconcileVisuals when its visual is created.
             population.GoldenAgent = goldenAgent;
             lsObjects.Add(goldenAgent);
         }
@@ -217,12 +289,8 @@ namespace AI_Evlo_Test
             if (goldenAgent == null)
                 return;
 
-            if (goldenAgent.VisibleShape != null)
-            {
-                goldenAgent.VisibleShape.MouseDown -= ObjectInterface_MouseDown;
-                shapeToObjectMap.Remove(goldenAgent.VisibleShape);
-                panlUniverseView.Children.Remove(goldenAgent.VisibleShape);
-            }
+            QueueVisualRemoval(goldenAgent.VisibleShape);
+            goldenAgent.VisibleShape = null;
 
             if (ReferenceEquals(SelectedObject, goldenAgent))
                 SelectedObject = null;
@@ -237,6 +305,12 @@ namespace AI_Evlo_Test
             if (population?.GoldenAgent == null || population.GoldenAgentGene == null)
                 return;
 
+            if (!Utils.MatchesStructure(population.GoldenAgentGene, population.NeuroNetTemplate))
+            {
+                population.ResetGoldenBrain();
+                return;
+            }
+
             population.GoldenAgent.NNetwork = NeuralNetworkFactory.GetInstance().Create(Utils.CloneGene(population.GoldenAgentGene));
             population.GoldenAgent.Generation = population.GoldenAveragedNetworkCount;
         }
@@ -247,6 +321,11 @@ namespace AI_Evlo_Test
                 return false;
 
             RefreshGoldenAgentNetwork(population);
+            if (population.GoldenAgent is SmartObject goldenSmart)
+                goldenSmart.TriggerGoldenMergeFlash();
+
+            population.Stats?.RecordGoldenAverage(
+                CycleCount, population.GoldenAveragedNetworkCount, source.ID, source.Cycles);
             return true;
         }
 
@@ -275,59 +354,43 @@ namespace AI_Evlo_Test
             }
         }
 
+        // The factory methods below build model-only agents (no WPF). The visual is created
+        // lazily on the UI thread by ReconcileVisuals so these can run on the simulation thread.
         private SmartObject NewSmartObject2(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             SmartObject newObj = new SmartObject(NeuroNetTemplate, ref randomInit);
-            newObj.VisibleShape = CreateNewTrianglePolygon(ColorBrush);
-
-            newObj.VisibleShape.MouseDown += ObjectInterface_MouseDown;
-            shapeToObjectMap[newObj.VisibleShape] = newObj;
-            double initLocationX = (panlUniverseView.ActualWidth / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            double initLocationY = (panlUniverseView.ActualHeight / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            newObj.SetLocation(initLocationX, initLocationY);
-            DrawImage(newObj.VisibleShape, newObj.Location);
-            // newObj.ID = (ObjectsIdCounter++).ToString();
+            SetInitialAgentLocation(newObj);
             return newObj;
         }
 
         private Bird NewBird(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             Bird newObj = new Bird(NeuroNetTemplate, ref randomInit);
-            newObj.VisibleShape = CreateNewBirdImage();
-            newObj.VisibleShape.MouseDown += ObjectInterface_MouseDown;
-            shapeToObjectMap[newObj.VisibleShape] = newObj;
-            double initLocationX = (panlUniverseView.ActualWidth / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            double initLocationY = (panlUniverseView.ActualHeight / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            newObj.SetLocation(initLocationX, initLocationY);
-            DrawImage(newObj.VisibleShape, newObj.Location);
+            SetInitialAgentLocation(newObj);
             return newObj;
         }
 
         private Shark NewShark(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             Shark newObj = new Shark(NeuroNetTemplate, ref randomInit);
-            newObj.VisibleShape = CreateNewSharkImage();
-            newObj.VisibleShape.MouseDown += ObjectInterface_MouseDown;
-            shapeToObjectMap[newObj.VisibleShape] = newObj;
-            double initLocationX = (panlUniverseView.ActualWidth / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            double initLocationY = (panlUniverseView.ActualHeight / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            newObj.SetLocation(initLocationX, initLocationY);
-            DrawImage(newObj.VisibleShape, newObj.Location);
+            SetInitialAgentLocation(newObj);
             return newObj;
         }
 
         private Frog NewFrog(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             Frog newObj = new Frog(NeuroNetTemplate, ref randomInit);
-            newObj.VisibleShape = CreateNewFrogImage("frog9_64.png");
-            newObj.VisibleShape.MouseDown += ObjectInterface_MouseDown;
-            shapeToObjectMap[newObj.VisibleShape] = newObj;
-            double initLocationX = (panlUniverseView.ActualWidth / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            double initLocationY = (panlUniverseView.ActualHeight / 2) + NextRandom(0, (int)(Target.Size)) - (Target.Size / 2);
-            newObj.SetLocation(initLocationX, initLocationY);
-            DrawImage(newObj.VisibleShape, newObj.Location);
-            // newObj.ID = (ObjectsIdCounter++).ToString();
+            SetInitialAgentLocation(newObj);
             return newObj;
+        }
+
+        /// <summary>Random spawn position near the target, using the cached canvas size (no WPF reads).</summary>
+        private void SetInitialAgentLocation(ISmartObject newObj)
+        {
+            double size = Target?.Size ?? dblTargetSize;
+            double initLocationX = (canvasWidth / 2) + NextRandom(0, (int)size) - (size / 2);
+            double initLocationY = (canvasHeight / 2) + NextRandom(0, (int)size) - (size / 2);
+            newObj.SetLocation(initLocationX, initLocationY);
         }
 
         private void DisposeObject(ISmartObject obj)
@@ -338,6 +401,7 @@ namespace AI_Evlo_Test
             Population goldenPopulation = lsPopulations.FirstOrDefault(pop => ReferenceEquals(pop.GoldenAgent, obj));
             if (goldenPopulation != null)
             {
+                goldenPopulation.Stats?.RecordGoldenDeath(CycleCount, obj.Cycles);
                 RemoveGoldenAgent(goldenPopulation);
                 if (goldenPopulation.GoldenAgentEnabled)
                     EnsureGoldenAgent(goldenPopulation);
@@ -345,12 +409,7 @@ namespace AI_Evlo_Test
             }
 
             {
-                if (obj.VisibleShape != null)
-                {
-                    obj.VisibleShape.MouseDown -= ObjectInterface_MouseDown;
-                    shapeToObjectMap.Remove(obj.VisibleShape);
-                    panlUniverseView.Children.Remove(obj.VisibleShape);
-                }
+                QueueVisualRemoval(obj.VisibleShape);
                 obj.VisibleShape = null;
 
 

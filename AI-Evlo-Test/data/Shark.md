@@ -22,7 +22,7 @@ The **Shark** is an underwater predator agent that inherits from `SmartObject`. 
 
 ### Movement
 
-Sharks use the standard `SmartObject.Act()` method: two neural network outputs control rotation and thrust.
+Sharks use the standard `SmartObject.Act()` method: the first two neural network outputs control rotation and thrust, and the last two outputs write recurrent memory values for the next tick.
 
 ### Perception
 
@@ -34,7 +34,7 @@ Sharks use 12-ray raycasting perception. They can perceive:
 
 Sharks ignore other sharks and frogs that are currently on a raft (`Frog_OnRaft`). This means sharks can chase birds and water frogs visually, but raft frogs do not block or attract shark rays.
 
-Neural network inputs: 1 scalar HP deficit + 24 ray signals = 25 inputs.
+Neural network inputs: 1 scalar HP deficit + 2 recurrent memory values + 48 ray signals (12 rays x 2 distinct-category hits x distance + type) = 51 inputs. Outputs = 4: rotation, thrust, memory0, memory1.
 
 ### HP and Survival
 

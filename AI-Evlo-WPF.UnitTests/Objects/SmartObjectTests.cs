@@ -142,6 +142,17 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
+        public void TriggerGoldenMergeFlash_MarksAgentAsFlashingBriefly()
+        {
+            var smartObject = new SmartObject();
+
+            smartObject.TriggerGoldenMergeFlash();
+
+            Assert.IsTrue(smartObject.IsGoldenMergeFlashActive);
+            Assert.IsGreaterThan(System.DateTime.UtcNow, smartObject.GoldenMergeFlashUntilUtc);
+        }
+
+        [TestMethod]
         public void Bird_InteractWithRafts_WhenLanded_DrainsOneFifthOfFlyingHp()
         {
             var raft = new TargetObj { Size = 100, HpCharge = 1 };
@@ -392,7 +403,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
-        public void ResolveSharkHuntsForTick_WhenBirdIsLanded_DoesNotBite()
+        public void ResolveSharkHuntsForTick_WhenBirdIsLanded_BitesBirdForThirtyHp()
         {
             var shark = new Shark { HP = 100 };
             shark.SetLocation(0, 0);
@@ -403,8 +414,9 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 new System.Collections.Generic.List<Shark> { shark },
                 new System.Collections.Generic.List<Bird> { bird });
 
-            Assert.AreEqual(100, shark.HP);
-            Assert.AreEqual(123, bird.HP);
+            Assert.AreEqual(130, shark.HP);
+            Assert.AreEqual(93, bird.HP);
+            Assert.AreEqual(5, shark.BiteCooldownTicksRemaining);
             Assert.IsEmpty(eaten);
         }
 
@@ -450,6 +462,29 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             var frog = new Frog { HP = 123 };
             frog.SetLocation(20, 0);
             var bird = new Bird { HP = 123, IsLanded = false };
+            bird.SetLocation(10, 0);
+
+            var result = AI_Evlo_Test.MainWindow.ResolveSharkHuntsForTick(
+                new System.Collections.Generic.List<Shark> { shark },
+                new System.Collections.Generic.List<Frog> { frog },
+                new System.Collections.Generic.List<Bird> { bird });
+
+            Assert.AreEqual(130, shark.HP);
+            Assert.AreEqual(123, frog.HP);
+            Assert.AreEqual(93, bird.HP);
+            Assert.AreEqual(5, shark.BiteCooldownTicksRemaining);
+            Assert.IsEmpty(result.FrogsToDispose);
+            Assert.IsEmpty(result.BirdsToDispose);
+        }
+
+        [TestMethod]
+        public void ResolveSharkHuntsForTick_WhenWaterFrogAndLandedBirdAreValid_BitesNearestTarget()
+        {
+            var shark = new Shark { HP = 100 };
+            shark.SetLocation(0, 0);
+            var frog = new Frog { HP = 123 };
+            frog.SetLocation(20, 0);
+            var bird = new Bird { HP = 123, IsLanded = true };
             bird.SetLocation(10, 0);
 
             var result = AI_Evlo_Test.MainWindow.ResolveSharkHuntsForTick(
@@ -565,15 +600,34 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             bool ignoresShark = System.Array.Exists(
                 bird.IgnoredCategories,
                 category => category == ObjectCategory.Shark);
+            bool ignoresBird = System.Array.Exists(
+                bird.IgnoredCategories,
+                category => category == ObjectCategory.Bird || category == ObjectCategory.Bird_Landed);
 
             Assert.IsFalse(ignoresShark);
+            Assert.IsFalse(ignoresBird);
         }
 
         [TestMethod]
-        public void Shark_IgnoredCategories_SeesBirdsAndWaterFrogsButIgnoresRaftFrogs()
+        public void Frog_IgnoredCategories_DoesNotIgnoreFrogs()
+        {
+            var frog = new Frog();
+
+            bool ignoresFrog = System.Array.Exists(
+                frog.IgnoredCategories,
+                category => category == ObjectCategory.Frog || category == ObjectCategory.Frog_OnRaft);
+
+            Assert.IsFalse(ignoresFrog);
+        }
+
+        [TestMethod]
+        public void Shark_IgnoredCategories_SeesSharksBirdsAndWaterFrogsButIgnoresRaftFrogs()
         {
             var shark = new Shark();
 
+            bool ignoresShark = System.Array.Exists(
+                shark.IgnoredCategories,
+                category => category == ObjectCategory.Shark);
             bool ignoresBird = System.Array.Exists(
                 shark.IgnoredCategories,
                 category => category == ObjectCategory.Bird || category == ObjectCategory.Bird_Landed);
@@ -584,6 +638,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 shark.IgnoredCategories,
                 category => category == ObjectCategory.Frog_OnRaft);
 
+            Assert.IsFalse(ignoresShark);
             Assert.IsFalse(ignoresBird);
             Assert.IsFalse(ignoresWaterFrog);
             Assert.IsTrue(ignoresRaftFrog);
@@ -597,7 +652,11 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             raftFrog.SetLocation(20, 0);
             var waterFrog = new TargetObj { Size = 10, Category = ObjectCategory.Frog };
             waterFrog.SetLocation(40, 0);
-            var objects = new System.Collections.Generic.List<ISensable> { raftFrog, waterFrog };
+            var objects = new System.Collections.Generic.List<SensableSnapshot>
+            {
+                new SensableSnapshot(raftFrog.ID, raftFrog.Location, raftFrog.Size, raftFrog.Category),
+                new SensableSnapshot(waterFrog.ID, waterFrog.Location, waterFrog.Size, waterFrog.Category)
+            };
 
             perception.Update(
                 new Point(0, 0),
@@ -609,11 +668,58 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
+        public void RayPerception_WhenBirdSeesRaftWithSharkBehind_ReportsSharkAsSecondHit()
+        {
+            var bird = new Bird();
+            var perception = new RayPerception(1, 100, 0, 1.0);
+            var raft = new TargetObj { ID = "raft", Size = 10, Category = ObjectCategory.Raft };
+            raft.SetLocation(20, 0);
+            var shark = new TargetObj { ID = "shark", Size = 10, Category = ObjectCategory.Shark };
+            shark.SetLocation(40, 0);
+            var objects = new List<SensableSnapshot>
+            {
+                new SensableSnapshot(raft.ID, raft.Location, raft.Size, raft.Category),
+                new SensableSnapshot(shark.ID, shark.Location, shark.Size, shark.Category)
+            };
+
+            perception.Update(
+                new Point(0, 0),
+                new System.Windows.Vector(1, 0),
+                objects,
+                ignoredCategories: bird.IgnoredCategories);
+
+            Assert.AreEqual(ObjectCategory.Raft, perception.HitLayers[0, 0].Category);
+            Assert.AreEqual(ObjectCategory.Shark, perception.HitLayers[0, 1].Category);
+        }
+
+        [TestMethod]
+        public void RayPerception_WhenSourceObjectMovesAfterSnapshot_UsesSnapshotLocation()
+        {
+            var perception = new RayPerception(1, 50, 0, 1.0);
+            var food = new TargetObj { ID = "food", Size = 10, Category = ObjectCategory.Food };
+            food.SetLocation(20, 0);
+            var objects = new List<SensableSnapshot>
+            {
+                new SensableSnapshot(food.ID, food.Location, food.Size, food.Category)
+            };
+
+            food.SetLocation(80, 0);
+
+            perception.Update(
+                new Point(0, 0),
+                new System.Windows.Vector(1, 0),
+                objects);
+
+            Assert.AreEqual(ObjectCategory.Food, perception.Hits[0].Category);
+            Assert.IsLessThan(50, perception.Hits[0].Distance);
+        }
+
+        [TestMethod]
         public void CachedInputs_WhenNull_CreatesNewArrayWithCorrectLength()
         {
             // Arrange
             var smartObject = new SmartObject();
-            int expectedLength = smartObject.Perception.Signals.Length + 1;
+            int expectedLength = SmartObject.InputCount;
 
             // Act
             var cachedInputs = smartObject.CachedInputs;
@@ -621,6 +727,52 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             // Assert
             Assert.IsNotNull(cachedInputs);
             Assert.HasCount(expectedLength, cachedInputs);
+        }
+
+        [TestMethod]
+        public void RayPerception_WhenMultipleCategoriesOnSameRay_ReportsNearestTwoDistinctCategories()
+        {
+            var perception = new RayPerception(1, 100, 0, 1.0);
+            var frogNear = new TargetObj { ID = "frog-near", Size = 10, Category = ObjectCategory.Frog };
+            frogNear.SetLocation(20, 0);
+            var frogFar = new TargetObj { ID = "frog-far", Size = 10, Category = ObjectCategory.Frog };
+            frogFar.SetLocation(30, 0);
+            var sharkBehind = new TargetObj { ID = "shark", Size = 10, Category = ObjectCategory.Shark };
+            sharkBehind.SetLocation(40, 0);
+            var objects = new List<SensableSnapshot>
+            {
+                new SensableSnapshot(frogNear.ID, frogNear.Location, frogNear.Size, frogNear.Category),
+                new SensableSnapshot(frogFar.ID, frogFar.Location, frogFar.Size, frogFar.Category),
+                new SensableSnapshot(sharkBehind.ID, sharkBehind.Location, sharkBehind.Size, sharkBehind.Category)
+            };
+
+            perception.Update(new Point(0, 0), new System.Windows.Vector(1, 0), objects);
+
+            Assert.AreEqual(ObjectCategory.Frog, perception.HitLayers[0, 0].Category);
+            Assert.AreEqual(ObjectCategory.Shark, perception.HitLayers[0, 1].Category);
+            Assert.AreEqual(ObjectCategory.Frog, perception.Hits[0].Category);
+        }
+
+        [TestMethod]
+        public void RayPerception_WhenOnlyOneCategoryOnRay_LeavesSecondHitEmpty()
+        {
+            var perception = new RayPerception(1, 100, 0, 1.0);
+            var frogNear = new TargetObj { ID = "frog-near", Size = 10, Category = ObjectCategory.Frog };
+            frogNear.SetLocation(20, 0);
+            var frogFar = new TargetObj { ID = "frog-far", Size = 10, Category = ObjectCategory.Frog };
+            frogFar.SetLocation(40, 0);
+            var objects = new List<SensableSnapshot>
+            {
+                new SensableSnapshot(frogNear.ID, frogNear.Location, frogNear.Size, frogNear.Category),
+                new SensableSnapshot(frogFar.ID, frogFar.Location, frogFar.Size, frogFar.Category)
+            };
+
+            perception.Update(new Point(0, 0), new System.Windows.Vector(1, 0), objects);
+
+            Assert.AreEqual(ObjectCategory.Frog, perception.HitLayers[0, 0].Category);
+            Assert.IsNull(perception.HitLayers[0, 1].Category);
+            Assert.AreEqual(0, perception.Signals[2]);
+            Assert.AreEqual(0, perception.Signals[3]);
         }
 
         [TestMethod]
@@ -759,6 +911,24 @@ namespace AI_Evlo_WPF.UnitTests.Objects
 
             // Assert
             Assert.AreSame(expectedOutputs, result);
+        }
+
+        [TestMethod]
+        public void Act_WithMemoryOutputs_StoresScratchpadForNextTick()
+        {
+            var outputs = new double[] { 0.0, 0.0, 0.25, -0.75 };
+            var mockNeuralNetwork = new Mock<INeuralNetwork>();
+            mockNeuralNetwork.Setup(nn => nn.GetOutputs()).Returns(outputs);
+
+            var smartObject = new SmartObject
+            {
+                NNetwork = mockNeuralNetwork.Object
+            };
+
+            smartObject.Act(new double[SmartObject.InputCount]);
+
+            Assert.AreEqual(0.25, smartObject.Memory[0]);
+            Assert.AreEqual(-0.75, smartObject.Memory[1]);
         }
 
         [TestMethod]
@@ -1144,19 +1314,53 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
-        public void ShouldRaftSink_UsesOneThirdOfFrogPopulationSizeLimit()
+        public void ShouldRaftSink_WhenFewerThanFifteenFrogsAreOnRaft_DoesNotSink()
         {
-            // Arrange
             var populations = new List<Population>
             {
-                new Population { Being = PopulationBeing.Frog, SizeLimit = 50, Members = new List<ISmartObject> { new Frog { HP = 100 }, new Frog { HP = 100 } } },
+                new Population { Being = PopulationBeing.Frog, SizeLimit = 50, Members = CreateFrogs(20) },
                 new Population { Being = PopulationBeing.Bird, SizeLimit = 100, Members = new List<ISmartObject> { new Bird { HP = 100 } } }
             };
 
-            // Act / Assert
-            Assert.IsFalse(MainWindow.ShouldRaftSink(2, populations));
-            Assert.IsFalse(MainWindow.ShouldRaftSink(16, populations));
-            Assert.IsTrue(MainWindow.ShouldRaftSink(17, populations));
+            Assert.IsFalse(MainWindow.ShouldRaftSink(14, populations));
+        }
+
+        [TestMethod]
+        public void ShouldRaftSink_WhenFifteenFrogsAreAtLeastHalfOfLiveFrogs_Sinks()
+        {
+            var populations = new List<Population>
+            {
+                new Population { Being = PopulationBeing.Frog, SizeLimit = 50, Members = CreateFrogs(30) },
+                new Population { Being = PopulationBeing.Bird, SizeLimit = 100, Members = new List<ISmartObject> { new Bird { HP = 100 } } }
+            };
+
+            Assert.IsTrue(MainWindow.ShouldRaftSink(15, populations));
+        }
+
+        [TestMethod]
+        public void ShouldRaftSink_WhenFifteenFrogsAreLessThanHalfOfLiveFrogs_DoesNotSink()
+        {
+            var populations = new List<Population>
+            {
+                new Population { Being = PopulationBeing.Frog, SizeLimit = 100, Members = CreateFrogs(40) }
+            };
+
+            Assert.IsFalse(MainWindow.ShouldRaftSink(15, populations));
+            Assert.IsTrue(MainWindow.ShouldRaftSink(20, populations));
+        }
+
+        [TestMethod]
+        public void ShouldRaftSink_AggregatesLiveFrogsAcrossFrogPopulations()
+        {
+            var populations = new List<Population>
+            {
+                new Population { Being = PopulationBeing.Frog, SizeLimit = 20, Members = CreateFrogs(10) },
+                new Population { Being = PopulationBeing.Frog, SizeLimit = 20, Members = CreateFrogs(20) },
+                new Population { Being = PopulationBeing.Shark, SizeLimit = 50, Members = new List<ISmartObject> { new Shark { HP = 100 } } }
+            };
+
+            Assert.IsFalse(MainWindow.ShouldRaftSink(14, populations));
+            Assert.IsTrue(MainWindow.ShouldRaftSink(15, populations));
         }
 
         [TestMethod]
@@ -1195,6 +1399,15 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             // Assert
             Assert.IsNotNull(smartObject.Perception.Signals);
             Assert.IsNotEmpty(smartObject.Perception.Signals);
+        }
+
+        private static List<ISmartObject> CreateFrogs(int count)
+        {
+            var frogs = new List<ISmartObject>();
+            for (int i = 0; i < count; i++)
+                frogs.Add(new Frog { HP = 100 });
+
+            return frogs;
         }
     }
 }

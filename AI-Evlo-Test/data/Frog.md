@@ -19,7 +19,7 @@ The **Frog** is the primary prey and raft-survival agent. Frogs sustain themselv
 
 ### Movement
 
-Frogs use the standard `SmartObject.Act()` method: two neural network outputs control rotation and thrust.
+Frogs use the standard `SmartObject.Act()` method: the first two neural network outputs control rotation and thrust, and the last two outputs write recurrent memory values for the next tick.
 
 ### Perception
 
@@ -31,7 +31,7 @@ Frogs use 12-ray raycasting perception with a filtered view. Frogs ignore both w
 
 This keeps frogs from evolving by simply following each other and forces them to learn from environmental and predator signals.
 
-Neural network inputs: 1 scalar HP deficit + 24 ray signals (12 rays x distance + type) = 25 inputs.
+Neural network inputs: 1 scalar HP deficit + 2 recurrent memory values + 48 ray signals (12 rays x 2 distinct-category hits x distance + type) = 51 inputs. Outputs = 4: rotation, thrust, memory0, memory1.
 
 ### HP and Survival
 

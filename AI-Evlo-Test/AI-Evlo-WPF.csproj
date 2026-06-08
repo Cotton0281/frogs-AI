@@ -29,7 +29,7 @@
     <UseWPF>true</UseWPF>
     <Configurations>Debug;Mono;Release</Configurations>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <NoWarn>$(NoWarn);CA1416;WFO1000</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <GenerateSerializationAssemblies>Auto</GenerateSerializationAssemblies>

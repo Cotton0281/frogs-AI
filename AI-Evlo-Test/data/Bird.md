@@ -21,7 +21,7 @@ The **Bird** is a predator agent that inherits from `SmartObject`. Birds evolve 
 
 ### Movement
 
-Birds use the standard `SmartObject.Act()` method: two neural network outputs control rotation and thrust.
+Birds use the standard `SmartObject.Act()` method: the first two neural network outputs control rotation and thrust, and the last two outputs write recurrent memory values for the next tick.
 
 ### Perception
 
@@ -33,7 +33,7 @@ Birds use the same 12-ray raycasting perception as other smart agents. Their ray
 
 Birds themselves appear as `Bird` while flying and `Bird_Landed` while landed.
 
-Neural network inputs: 1 scalar HP deficit + 24 ray signals (12 rays x distance + type) = 25 inputs.
+Neural network inputs: 1 scalar HP deficit + 2 recurrent memory values + 48 ray signals (12 rays x 2 distinct-category hits x distance + type) = 51 inputs. Outputs = 4: rotation, thrust, memory0, memory1.
 
 ### HP and Survival
 

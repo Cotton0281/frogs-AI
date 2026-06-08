@@ -58,9 +58,21 @@ namespace AI_Evlo_Test.Objects
         public int RegrowModeIndex { get; set; } = 0;
 
         public bool GoldenAgentEnabled { get; set; } = true;
+        public bool SpawnDelay { get; set; } = true;
+        public bool PauseMutation { get; set; } = false;
         public NeuralNetworkGene GoldenAgentGene { get; set; }
+
+        // Snapshot of the golden brain the moment the first survivor seeded it. Persisted so the
+        // dashboard's initial-vs-current brain diff is meaningful immediately after a save/load.
+        public NeuralNetworkGene GoldenInitialGene { get; set; }
         public int GoldenAveragedNetworkCount { get; set; }
         public int GoldenRecordSurvivorCycles { get; set; }
+
+        // Runtime-only history collector, attached by the Population Dashboard while it is open and
+        // cleared when it closes. Null means nothing is recorded (see PopulationStats).
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Runtime.Serialization.IgnoreDataMember]
+        public PopulationStats Stats { get; set; }
 
         [Newtonsoft.Json.JsonIgnore]
         [System.Runtime.Serialization.IgnoreDataMember]
@@ -134,6 +146,7 @@ namespace AI_Evlo_Test.Objects
             if (GoldenAgentGene == null || GoldenAveragedNetworkCount <= 0)
             {
                 GoldenAgentGene = Utils.CloneGene(survivorGene);
+                GoldenInitialGene = Utils.CloneGene(survivorGene);
                 GoldenAveragedNetworkCount = 1;
                 return true;
             }
@@ -174,6 +187,7 @@ namespace AI_Evlo_Test.Objects
         public void ResetGoldenBrain()
         {
             GoldenAgentGene = null;
+            GoldenInitialGene = null;
             GoldenAveragedNetworkCount = 0;
             GoldenRecordSurvivorCycles = 0;
             goldenInitialThreshold = 0;
@@ -342,7 +356,8 @@ namespace AI_Evlo_Test.Objects
         ArchivedBestMutated,
         AliveBestExact,
         AliveBestMutated,
-        Random
+        Random,
+        GoldenAgentMutated
     }
 
     public sealed class RegrowthBrainSource
@@ -380,13 +395,29 @@ namespace AI_Evlo_Test.Objects
 
     public static class PopulationRegrowthPolicy
     {
-        private const int ModeCount = 5;
+        private const int ModeCount = 6;
 
         public static bool ShouldSpawn(Population population, int currentCycle)
         {
+            if (population != null && !population.SpawnDelay)
+                return NeedsRegrowth(population);
+
             return NeedsRegrowth(population)
                 && population.NextRegrowCycle >= 0
                 && currentCycle >= population.NextRegrowCycle;
+        }
+
+        public static bool ShouldMutate(Population population, bool mutationRequested)
+        {
+            return mutationRequested && !(population?.PauseMutation ?? false);
+        }
+
+        public static ISmartObject LongestLivedMember(Population population)
+        {
+            return population?.Members?
+                .Where(member => member != null && member.NNetwork != null)
+                .OrderByDescending(member => member.Cycles)
+                .FirstOrDefault();
         }
 
         public static bool NeedsRegrowth(Population population)
@@ -403,12 +434,19 @@ namespace AI_Evlo_Test.Objects
 
         public static void MarkSpawned(Population population, int currentCycle)
         {
-            ScheduleNextSpawn(population, currentCycle);
+            if (population != null && population.SpawnDelay)
+                ScheduleNextSpawn(population, currentCycle);
+            else
+                ClearSchedule(population);
+
             population.RegrowModeIndex = (population.RegrowModeIndex + 1) % ModeCount;
         }
 
         public static void ClearSchedule(Population population)
         {
+            if (population == null)
+                return;
+
             population.NextRegrowCycle = -1;
         }
 
@@ -444,8 +482,10 @@ namespace AI_Evlo_Test.Objects
                     return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestExact, BestAlive(population));
                 case 3:
                     return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestMutated, BestAlive(population));
-                default:
+                case 4:
                     return RegrowthBrainSource.Random();
+                default:
+                    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.GoldenAgentMutated, population.GoldenAgent);
             }
         }
 

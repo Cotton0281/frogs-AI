@@ -41,9 +41,7 @@ namespace AI_Evlo_Test
                 if (lsObjects[i].HP <= 0)
                     DisposeObject(lsObjects[i]);
             }
-            // if removing the selected obj, then select new one
-            if (!isHeadlessMode && (SelectedObject == null || SelectedObject.HP < 1))
-                SelectObject(GetTopFitnessObject());
+            // Reselection of a dead inspected agent happens on the UI thread (OnRendering).
 
             // Remove from populations
             foreach (Population Popul in lsPopulations)
@@ -52,6 +50,9 @@ namespace AI_Evlo_Test
                 Popul.Members.RemoveAll(o => o.HP <= 0);
                 if (Popul.Members.Count < Popul.SizeLimit)
                     ReGrowPopulation(Popul);
+
+                // Time-series sampling is a no-op (single null check) unless a dashboard is open.
+                Popul.Stats?.SampleIfDue(Popul, CycleCount);
             }
 
             CycleCount++;
@@ -141,7 +142,7 @@ namespace AI_Evlo_Test
 
         private void MoveAgentsEnvirnoment1()
         {
-            IList<ISensable> snapshot = BuildSensableSnapshot();
+            IReadOnlyList<SensableSnapshot> snapshot = BuildSensableSnapshot();
             double targetRadius = Target.Size / 2;
 
             Parallel.ForEach(lsObjects, smartObject =>
@@ -151,9 +152,9 @@ namespace AI_Evlo_Test
                 // Each species declares what it can and cannot perceive
                 smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
 
-                // Build NN inputs: 1 scalar (HP deficit) + 24 ray signals = 25
+                // Build NN inputs: HP deficit + recurrent memory + ray signals.
                 double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
-                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit);
+                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit, smart.Memory);
 
                 smartObject.Act(smart.CachedInputs);
 
@@ -167,46 +168,13 @@ namespace AI_Evlo_Test
                 else
                     smartObject.HP -= 1;
             });
-
-            if (!isHeadlessMode && !suppressAgentRender)
-            {
-                // Visualize rays for the selected agent only
-                if (SelectedObject != null && SelectedObject.HP > 0 && SelectedObject is SmartObject selSmart)
-                    rayVisualizer.Draw(selSmart.Location, selSmart.Perception);
-
-                foreach (ISmartObject smartObject in lsObjects)
-                {
-                    if (smartObject.VisibleShape == null)
-                        continue;
-
-                    // Update UI
-                    SmartObject smart = (SmartObject)smartObject;
-                    smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
-                    double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
-                    // Reuse the existing transform instead of allocating one per agent per frame.
-                    if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
-                        rotate.Angle = anglFromVertical;
-                    else
-                        smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
-
-                    // Animate species sprite
-                    if (smartObject.VisibleShape is Image img)
-                    {
-                        ImageSource frame = smart.GetSpriteFrame();
-                        if (frame != null)
-                            img.Source = smart.IsGoldenAgent ? GoldenTintCache.GetTinted(frame) : frame;
-                    }
-
-                    DrawImage(smartObject.VisibleShape, smartObject.Location);
-                }
-            }
         }
 
         private void MoveAgentsEnvirnoment2()
         {
             CarryAgentsOnRafts();
 
-            IList<ISensable> snapshot = BuildSensableSnapshot();
+            IReadOnlyList<SensableSnapshot> snapshot = BuildSensableSnapshot();
 
             Parallel.ForEach(lsObjects, smartObject =>
             {
@@ -215,50 +183,155 @@ namespace AI_Evlo_Test
                 // Each species declares what it can and cannot perceive
                 smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
 
-                // Build NN inputs: 1 scalar (HP deficit) + 24 ray signals = 25
+                // Build NN inputs: HP deficit + recurrent memory + ray signals.
                 double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
-                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit);
+                smart.Perception.FillInputs(smart.CachedInputs, hpDeficit, smart.Memory);
 
                 smartObject.Act(smart.CachedInputs);
             });
 
             ApplyRaftEnvironmentEffects();
+        }
 
-            if (!isHeadlessMode && !suppressAgentRender)
+        // ---- Rendering (UI thread only) ----------------------------------------------
+        // Reads model state and updates WPF visuals. Kept separate from the model step so
+        // the simulation can run without touching the UI.
+
+        private void RenderWorld()
+        {
+            ReconcileVisuals();
+            RenderTargets();
+            if (eEnvironmentType == EEnvironmentType.OneTarget)
+                RenderAgentsEnv1();
+            else
+                RenderAgentsEnv2();
+        }
+
+        private void RenderTargets()
+        {
+            foreach (TargetObj target in Targets)
             {
-                // Visualize rays for the selected agent only
-                if (SelectedObject != null && SelectedObject.HP > 0 && SelectedObject is SmartObject selSmart)
-                    rayVisualizer.Draw(selSmart.Location, selSmart.Perception);
+                if (target.VisibleShape == null)
+                    continue;
 
-                foreach (ISmartObject smartObject in lsObjects)
+                if (eEnvironmentType == EEnvironmentType.OneTarget)
                 {
-                    if (smartObject.VisibleShape == null)
-                        continue;
-
-                    // Update UI
-                    SmartObject smart = (SmartObject)smartObject;
-                    smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
-                    if (smartObject.VisibleShape is Polygon polygon)
-                        polygon.Stroke = smartObject.IsGettingHP ? Brushes.GreenYellow : Brushes.OrangeRed;
-
-                    double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
-                    // Reuse the existing transform instead of allocating one per agent per frame.
-                    if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
-                        rotate.Angle = anglFromVertical;
-                    else
-                        smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
-
-                    // Animate species sprite
-                    if (smartObject.VisibleShape is Image img)
-                    {
-                        ImageSource frame = smart.GetSpriteFrame();
-                        if (frame != null)
-                            img.Source = smart.IsGoldenAgent ? GoldenTintCache.GetTinted(frame) : frame;
-                    }
-
-                    DrawImage(smartObject.VisibleShape, smartObject.Location);
+                    target.VisibleShape.Width = target.Size;
+                    target.VisibleShape.Height = target.Size;
                 }
+
+                target.VisibleShape.Opacity = target.Underwater >= 0 ? 0.6 : 0.3;
+                DrawImage(target.VisibleShape, target.Location);
             }
+        }
+
+        private void RenderAgentsEnv1()
+        {
+            RenderSelectedAgentRays();
+
+            foreach (ISmartObject smartObject in lsObjects)
+            {
+                if (smartObject.VisibleShape == null)
+                    continue;
+
+                SmartObject smart = (SmartObject)smartObject;
+                smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
+                double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
+                // Reuse the existing transform instead of allocating one per agent per frame.
+                if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
+                    rotate.Angle = anglFromVertical;
+                else
+                    smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
+
+                // Animate species sprite
+                if (smartObject.VisibleShape is Image img)
+                {
+                    ImageSource frame = smart.GetSpriteFrame();
+                    if (frame != null)
+                        img.Source = GetAgentFrameForRender(smart, frame);
+                }
+                else if (smart.IsGoldenAgent && smartObject.VisibleShape is Shape shape)
+                {
+                    shape.Fill = smart.IsGoldenMergeFlashActive ? Brushes.Red : Brushes.Gold;
+                }
+
+                DrawImage(smartObject.VisibleShape, smartObject.Location);
+            }
+        }
+
+        private void RenderAgentsEnv2()
+        {
+            RenderSelectedAgentRays();
+
+            foreach (ISmartObject smartObject in lsObjects)
+            {
+                if (smartObject.VisibleShape == null)
+                    continue;
+
+                SmartObject smart = (SmartObject)smartObject;
+                smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
+                if (smartObject.VisibleShape is Polygon polygon)
+                    polygon.Stroke = smartObject.IsGettingHP ? Brushes.GreenYellow : Brushes.OrangeRed;
+
+                double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
+                // Reuse the existing transform instead of allocating one per agent per frame.
+                if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
+                    rotate.Angle = anglFromVertical;
+                else
+                    smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
+
+                // Animate species sprite
+                if (smartObject.VisibleShape is Image img)
+                {
+                    ImageSource frame = smart.GetSpriteFrame();
+                    if (frame != null)
+                        img.Source = GetAgentFrameForRender(smart, frame);
+                }
+                else if (smart.IsGoldenAgent && smartObject.VisibleShape is Shape shape)
+                {
+                    shape.Fill = smart.IsGoldenMergeFlashActive ? Brushes.Red : Brushes.Gold;
+                }
+
+                DrawImage(smartObject.VisibleShape, smartObject.Location);
+            }
+        }
+
+        private void RenderSelectedAgentRays()
+        {
+            if (TryGetRenderableSelectedSmartObject(out SmartObject selected))
+            {
+                rayVisualizer.Draw(selected.Location, selected.Perception);
+                return;
+            }
+
+            rayVisualizer?.Hide();
+        }
+
+        private static ImageSource GetAgentFrameForRender(SmartObject smart, ImageSource frame)
+        {
+            if (!smart.IsGoldenAgent)
+                return frame;
+
+            return smart.IsGoldenMergeFlashActive
+                ? GoldenTintCache.GetRedTinted(frame)
+                : GoldenTintCache.GetTinted(frame);
+        }
+
+        private bool TryGetRenderableSelectedSmartObject(out SmartObject selected)
+        {
+            selected = null;
+
+            if (!(SelectedObject is SmartObject smart))
+                return false;
+
+            if (smart.HP <= 0 || smart.NNetwork == null || smart.Perception == null)
+                return false;
+
+            if (!lsObjects.Contains(smart))
+                return false;
+
+            selected = smart;
+            return true;
         }
 
         private void MoveTarget()
@@ -270,19 +343,19 @@ namespace AI_Evlo_Test
             {
                 // Bounce of edges of screen
                 if (target.Location.X < (dblTargetSize / 2)
-                    || target.Location.X > panlUniverseView.ActualWidth)
+                    || target.Location.X > canvasWidth)
                 {
                     target.Intertia.X = NextRandomDouble() / 4 + 0.1;
-                    if (target.Location.X > panlUniverseView.ActualWidth)
+                    if (target.Location.X > canvasWidth)
                         target.Intertia.X *= -1; // reverse direction
                     target.RotationDegPerSec = RandomRotationSpeed(); // bump → new spin speed
                 }
 
                 if (target.Location.Y < (dblTargetSize / 2)
-                    || target.Location.Y > panlUniverseView.ActualHeight)
+                    || target.Location.Y > canvasHeight)
                 {
                     target.Intertia.Y = NextRandomDouble() / 4 + 0.1;
-                    if (target.Location.Y > panlUniverseView.ActualHeight)
+                    if (target.Location.Y > canvasHeight)
                         target.Intertia.Y *= -1;
                     target.RotationDegPerSec = RandomRotationSpeed(); // bump → new spin speed
                 }
@@ -295,12 +368,6 @@ namespace AI_Evlo_Test
                         target.Size = dblTargetSize;
                     else if (target.Size < dblTargetSize * 0.75)
                         target.Size = dblTargetSize * 0.75;
-
-                    if (!isHeadlessMode && target.VisibleShape != null)
-                    {
-                        target.VisibleShape.Width = target.Size;
-                        target.VisibleShape.Height = target.Size;
-                    }
                 }
 
 
@@ -309,18 +376,8 @@ namespace AI_Evlo_Test
                 else
                     target.Underwater++;
 
-                if (target.Underwater >= 0)
-                {
-                    target.HpCharge = 1;
-                    if (!isHeadlessMode && target.VisibleShape != null)
-                        target.VisibleShape.Opacity = 0.6;
-                }
-                else
-                {
-                    if (!isHeadlessMode && target.VisibleShape != null)
-                        target.VisibleShape.Opacity = 0.3;
-                    target.HpCharge = 0;
-                }
+                target.HpCharge = target.Underwater >= 0 ? 1 : 0;
+
                 if (StopTargets == false)
                 {
                     if (target.Trajectory is Path_spiral)
@@ -333,8 +390,6 @@ namespace AI_Evlo_Test
                         target.SetLocation(target.Location.X + target.Intertia.X, target.Location.Y + target.Intertia.Y);
                     }
                 }
-                if (!isHeadlessMode && target.VisibleShape != null)
-                    DrawImage(target.VisibleShape, target.Location);
             }
 
             // Resolve billiard-ball bounces between all targets (rafts)
@@ -351,12 +406,6 @@ namespace AI_Evlo_Test
                         }
                         BasicObject.ResolveElasticBounce(Targets[i], Targets[j]);
                     }
-
-                // Redraw targets at corrected positions after bounce separation
-                if (!isHeadlessMode)
-                    foreach (TargetObj target in Targets)
-                        if (target.VisibleShape != null)
-                            DrawImage(target.VisibleShape, target.Location);
             }
 
             foreach (TargetObj target in Targets)
@@ -364,11 +413,11 @@ namespace AI_Evlo_Test
         }
 
         /// <summary>
-        /// Builds a snapshot list of all ISensable objects for raycasting.
+        /// Builds a value snapshot list of all sensable objects for raycasting.
         /// Call once per tick before the Parallel.ForEach.
-        /// The returned list is read-only for the duration of that tick.
+        /// The returned list and its object state are read-only for the duration of that tick.
         /// </summary>
-        private IList<ISensable> BuildSensableSnapshot()
+        private IReadOnlyList<SensableSnapshot> BuildSensableSnapshot()
         {
             _sensableSnapshot.Clear();
 
@@ -379,7 +428,7 @@ namespace AI_Evlo_Test
                     target.Category = ObjectCategory.Food;
                 else
                     target.Category = target.Underwater >= 0 ? ObjectCategory.Raft : ObjectCategory.Raft_Sunk;
-                _sensableSnapshot.Add(target);
+                _sensableSnapshot.Add(new SensableSnapshot(target.ID, target.Location, target.Size, target.Category));
             }
 
             // Agents — each species reports its own perception category
@@ -392,7 +441,7 @@ namespace AI_Evlo_Test
                         smart.Category = smart is Frog && IsOnAnyRaft(smart)
                             ? ObjectCategory.Frog_OnRaft
                             : smart.SenseCategory;
-                        _sensableSnapshot.Add(smart);
+                        _sensableSnapshot.Add(new SensableSnapshot(smart.ID, smart.Location, smart.Size, smart.Category));
                     }
                 }
 
@@ -401,7 +450,7 @@ namespace AI_Evlo_Test
                     goldenSmart.Category = goldenSmart is Frog && IsOnAnyRaft(goldenSmart)
                         ? ObjectCategory.Frog_OnRaft
                         : goldenSmart.SenseCategory;
-                    _sensableSnapshot.Add(goldenSmart);
+                    _sensableSnapshot.Add(new SensableSnapshot(goldenSmart.ID, goldenSmart.Location, goldenSmart.Size, goldenSmart.Category));
                 }
             }
 
@@ -455,14 +504,20 @@ namespace AI_Evlo_Test
 
         internal static bool ShouldRaftSink(int frogsOnTop, IEnumerable<Population> populations)
         {
-            int frogPopulationSizeLimit = populations
-                .Where(p => p.Being == PopulationBeing.Frog)
-                .Sum(p => p.SizeLimit);
-
-            if (frogPopulationSizeLimit <= 0)
+            const int MinimumFrogsOnRaftToSink = 15;
+            if (frogsOnTop < MinimumFrogsOnRaftToSink)
                 return false;
 
-            int threshold = (int)Math.Ceiling(frogPopulationSizeLimit / 3.0);
+            int spawnedFrogs = populations
+                .Where(p => p.Being == PopulationBeing.Frog)
+                .Sum(p => p.Members?.Count(m => m != null && m.HP > 0) ?? 0);
+
+            if (spawnedFrogs <= 0)
+                return false;
+
+            int threshold = Math.Max(
+                MinimumFrogsOnRaftToSink,
+                (int)Math.Ceiling(spawnedFrogs * 0.5));
             return frogsOnTop >= threshold;
         }
 
@@ -480,7 +535,7 @@ namespace AI_Evlo_Test
         }
 
         readonly List<PopulationCard> lsPopuCards = new List<PopulationCard>();
-        readonly List<ISensable> _sensableSnapshot = new List<ISensable>();
+        readonly List<SensableSnapshot> _sensableSnapshot = new List<SensableSnapshot>();
 
         // Rolling history for the status-bar sparkline.
         private const int SparkSamples = 120;
@@ -800,7 +855,9 @@ namespace AI_Evlo_Test
             DisposeAll(ResolveLandedBirdHuntsForTick(ctx.HungryLandedBirds, ctx.FrogsOnRafts));
             DisposeAll(ResolveRaftFrogHuntsForTick(ctx.HungryFrogsOnRafts, ctx.LandedBirds));
             DisposeAll(ResolveWaterFrogHuntsForTick(ctx.HungryFrogsInWater, ctx.Sharks));
-            SharkHuntResult sharkHunts = ResolveSharkHuntsForTick(ctx.HungrySharks, ctx.FrogsInWater, ctx.FlyingBirds);
+            List<Bird> birdsReachableBySharks = new List<Bird>(ctx.FlyingBirds);
+            birdsReachableBySharks.AddRange(ctx.LandedBirds);
+            SharkHuntResult sharkHunts = ResolveSharkHuntsForTick(ctx.HungrySharks, ctx.FrogsInWater, birdsReachableBySharks);
             DisposeAll(sharkHunts.FrogsToDispose);
             DisposeAll(sharkHunts.BirdsToDispose);
             DisposeAll(ResolveBirdHuntsForTick(ctx.HungryBirds, ctx.Sharks));
@@ -829,10 +886,10 @@ namespace AI_Evlo_Test
         internal static SharkHuntResult ResolveSharkHuntsForTick(
             List<Shark> hungrySharks,
             List<Frog> frogsInWater,
-            List<Bird> flyingBirds)
+            List<Bird> birds)
         {
             var result = new SharkHuntResult();
-            if (hungrySharks.Count == 0 || (frogsInWater.Count == 0 && flyingBirds.Count == 0))
+            if (hungrySharks.Count == 0 || (frogsInWater.Count == 0 && birds.Count == 0))
                 return result;
 
             foreach (Shark shark in hungrySharks)
@@ -859,9 +916,9 @@ namespace AI_Evlo_Test
                     nearestBird = null;
                 }
 
-                foreach (Bird bird in flyingBirds)
+                foreach (Bird bird in birds)
                 {
-                    if (bird.HP <= 0 || bird.IsLanded || result.BirdsToDispose.Contains(bird))
+                    if (bird.HP <= 0 || result.BirdsToDispose.Contains(bird))
                         continue;
 
                     double distanceSq = Point.Subtract(bird.Location, shark.Location).LengthSquared;
@@ -947,7 +1004,7 @@ namespace AI_Evlo_Test
                 30,
                 Shark.HuntRange,
                 shark => shark.IsHungry,
-                bird => !bird.IsLanded,
+                bird => true,
                 onBite: (shark, bird) => shark.TriggerBite(),
                 onKill: null);
         }
