@@ -6,7 +6,7 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:local="clr-namespace:AI_Evlo_Test"
 xmlns:Objects="clr-namespace:AI_Evlo_Test.Objects" x:Name="windowEnvirnoment" x:Class="AI_Evlo_Test.MainWindow"
 mc:Ignorable="d"
-Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinHeight="480" MouseMove="WindowEnvirnoment_MouseMove" Closing="windowEnvirnoment_Closing">
+Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinHeight="480" Closing="windowEnvirnoment_Closing">
     <Window.Resources>
         <SolidColorBrush x:Key="BrushBorder" Color="#FFCAD4F3"/>
     </Window.Resources>
@@ -110,7 +110,7 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
                 <Label x:Name="lblSizePopulation" Grid.Row="0" Grid.Column="2" Content="Size" VerticalAlignment="Center" Padding="3,0,3,0" ToolTip="Population size: max number of agents"/>
                 <TextBox x:Name="txtPopulationSize" Grid.Row="0" Grid.Column="3" Margin="0,4,2,4" Width="40" Height="22"
                          VerticalAlignment="Center" VerticalContentAlignment="Center" Text="100"
-                         TextChanged="TxtCreateObjectsNumber_TextChanged" Opacity="0.85"
+                         Opacity="0.85"
                          ToolTip="Number of agents in the population"/>
 
                 <!-- Row 1: Brain + Being -->

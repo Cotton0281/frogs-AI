@@ -1,12 +1,8 @@
 ﻿using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.Factories;
-using ArtificialNeuralNetwork.WeightInitializer;
-//using NeuralNetwork.GeneticAlgorithm.Evolution;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ArtificialNeuralNetwork.Genes;
 using AI_Evlo_Test.Enumerators;
 
@@ -14,9 +10,8 @@ namespace AI_Evlo_Test.Objects
 {
     public class EvolutionChember
     {
-        static Random Rnd = new Random();
-        static readonly object RndLock = new object();
-        RandomWeightInitializer randomInit = new RandomWeightInitializer(Rnd);
+        private readonly Random rnd;
+        private readonly object rndLock = new object();
         public delegate void Message_Handler(string Message);
         public event Message_Handler NewMessage;
 
@@ -25,10 +20,12 @@ namespace AI_Evlo_Test.Objects
             NewMessage?.Invoke(message);
         }
 
-        public EvolutionChember()
+        public EvolutionChember() : this(Random.Shared.Next()) { }
+
+        /// <summary>Creates an evolution chamber with a reproducible random sequence.</summary>
+        public EvolutionChember(int seed)
         {
-            lock (RndLock)
-                Rnd = new Random(DateTime.Now.DayOfYear * 1000 + DateTime.Now.Millisecond);
+            rnd = new Random(seed);
         }
 
 
@@ -123,16 +120,16 @@ namespace AI_Evlo_Test.Objects
             return originalGenes;
         }
 
-        private static int NextRandom(int minValue, int maxValue)
+        private int NextRandom(int minValue, int maxValue)
         {
-            lock (RndLock)
-                return Rnd.Next(minValue, maxValue);
+            lock (rndLock)
+                return rnd.Next(minValue, maxValue);
         }
 
-        private static double NextRandomDouble()
+        private double NextRandomDouble()
         {
-            lock (RndLock)
-                return Rnd.NextDouble();
+            lock (rndLock)
+                return rnd.NextDouble();
         }
 
         /// <summary>
@@ -147,8 +144,6 @@ namespace AI_Evlo_Test.Objects
             // index Imput Layer
             for (int i = 0; i < originalGenes.InputGene.Neurons.Count; i++)
             {
-                NeuronsIndex biosIndex = new NeuronsIndex(ELeyerType.Input, 0, i, -1, EValueType.Bios);
-                lsIndex.Add(biosIndex);
                 for (int iw = 0; iw < originalGenes.InputGene.Neurons[i].Axon.Weights.Count; iw++)
                 {
                     NeuronsIndex WIndex = new NeuronsIndex(ELeyerType.Input, 0, i, iw, EValueType.Weigth);

@@ -8,6 +8,21 @@ namespace AI_Evlo_WPF.UnitTests.Objects
     [STATestClass]
     public class BasicObjectsTests
     {
+        [TestMethod]
+        public void CoincidentObjects_AreCollidingAndAreSeparatedByBounceResolution()
+        {
+            var first = new BasicObject { Size = 10 };
+            var second = new BasicObject { Size = 10 };
+            first.SetLocation(5, 5);
+            second.SetLocation(5, 5);
+
+            Assert.IsTrue(first.IsCollidingWith(second));
+
+            BasicObject.ResolveElasticBounce(first, second);
+
+            Assert.AreEqual(10, Point.Subtract(second.Location, first.Location).Length, 0.000001);
+        }
+
         // Location Property Tests
         [TestMethod]
         public void Location_WhenCreated_ReturnsDefaultPoint()

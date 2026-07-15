@@ -1,209 +1,170 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
-using ScottPlot;
-using ScottPlot.WinForms;
-// Both System.Drawing and ScottPlot define a Color type; bare "Color" means the WinForms one here.
-using Color = System.Drawing.Color;
 
 namespace AI_Evlo_Test
 {
-    /// <summary>
-    /// A small ScottPlot-backed chart used by the Population Dashboard. Wraps a <see cref="FormsPlot"/>
-    /// and exposes a tiny, snapshot-friendly API: <see cref="SetLine"/> for one or two line series and
-    /// <see cref="SetBars"/> for a single bar series. Styling is kept light to match the dashboard.
-    /// Replaces the earlier dependency-free GDI sparkline with sharper, auto-scaling plots.
-    /// </summary>
+    /// <summary>A lightweight snapshot-driven chart with no native or legacy UI dependencies.</summary>
     public sealed class DashboardChart : UserControl
     {
-        private readonly FormsPlot _plot = new FormsPlot { Dock = DockStyle.Fill };
-        // Lazily-created secondary Y axis (0–100%) on the right, reused across refreshes.
-        private IYAxis _rightAxis;
+        private double[] primary = Array.Empty<double>();
+        private double[] secondary = Array.Empty<double>();
+        private string[] labels = Array.Empty<string>();
+        private ChartKind kind;
 
         public string Caption { get; set; } = "";
         public Color PrimaryColor { get; set; } = Color.FromArgb(40, 120, 215);
         public Color SecondaryColor { get; set; } = Color.FromArgb(220, 90, 40);
         public string PrimaryLabel { get; set; } = "";
         public string SecondaryLabel { get; set; } = "";
-
-        /// <summary>When true, the Y axis is forced to start at zero (used by the line charts).</summary>
         public bool BaselineZero { get; set; } = true;
 
         public DashboardChart()
         {
-            Controls.Add(_plot);
-            StyleClean(_plot.Plot);
+            DoubleBuffered = true;
+            BackColor = Color.White;
         }
 
-        /// <summary>Draws one or two index-based line series (e.g. top vs mean fitness).</summary>
-        public void SetLine(double[] primary, double[] secondary = null)
+        public void SetLine(double[] primaryValues, double[] secondaryValues = null)
         {
-            Plot plot = _plot.Plot;
-            plot.Clear();
-            ApplyTitle(plot);
+            primary = Copy(primaryValues);
+            secondary = Copy(secondaryValues);
+            labels = Array.Empty<string>();
+            kind = ChartKind.Line;
+            Invalidate();
+        }
 
-            if (primary == null || primary.Length == 0)
+        public void SetLinePercentRight(double[] primaryValues, double[] percentValues)
+        {
+            primary = Copy(primaryValues);
+            secondary = Copy(percentValues);
+            labels = Array.Empty<string>();
+            kind = ChartKind.LinePercent;
+            Invalidate();
+        }
+
+        public void SetBars(double[] values, string[] axisLabels = null)
+        {
+            primary = Copy(values);
+            secondary = Array.Empty<double>();
+            labels = axisLabels?.ToArray() ?? Array.Empty<string>();
+            kind = ChartKind.Bars;
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Graphics graphics = e.Graphics;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            using var titleFont = new Font(Font, FontStyle.Bold);
+            graphics.DrawString(Caption ?? "", titleFont, Brushes.DimGray, 8, 5);
+            Rectangle plot = new Rectangle(42, 28, Math.Max(1, Width - 54), Math.Max(1, Height - 54));
+            using var gridPen = new Pen(Color.FromArgb(235, 238, 242));
+            using var axisPen = new Pen(Color.FromArgb(120, 126, 136));
+            for (int i = 0; i <= 4; i++)
             {
-                ShowCollecting(plot);
-                _plot.Refresh();
+                int y = plot.Top + plot.Height * i / 4;
+                graphics.DrawLine(gridPen, plot.Left, y, plot.Right, y);
+            }
+            graphics.DrawLine(axisPen, plot.Left, plot.Top, plot.Left, plot.Bottom);
+            graphics.DrawLine(axisPen, plot.Left, plot.Bottom, plot.Right, plot.Bottom);
+
+            if (primary.Length == 0 && secondary.Length == 0)
+            {
+                graphics.DrawString("collecting data…", Font, Brushes.Gray, plot.Left + 8, plot.Top + 8);
                 return;
             }
 
-            var sig = plot.Add.Signal(primary);
-            sig.Color = ToColor(PrimaryColor);
-            sig.LineWidth = 2;
-            sig.LegendText = PrimaryLabel;
-
-            if (secondary != null && secondary.Length > 0)
-            {
-                var sig2 = plot.Add.Signal(secondary);
-                sig2.Color = ToColor(SecondaryColor);
-                sig2.LineWidth = 2;
-                sig2.LegendText = SecondaryLabel;
-            }
-
-            if (!string.IsNullOrEmpty(PrimaryLabel) || !string.IsNullOrEmpty(SecondaryLabel))
-                plot.ShowLegend(Alignment.UpperLeft);
+            if (kind == ChartKind.Bars)
+                DrawBars(graphics, plot);
             else
-                plot.HideLegend();
+                DrawLines(graphics, plot);
 
-            plot.Axes.AutoScale();
-            if (BaselineZero)
-            {
-                AxisLimits lim = plot.Axes.GetLimits();
-                plot.Axes.SetLimitsY(Math.Min(0, lim.Bottom), lim.Top);
-            }
-
-            _plot.Refresh();
+            DrawLegend(graphics, plot);
         }
 
-        /// <summary>
-        /// Draws the primary series against the left (auto-scaled) axis and a companion percentage
-        /// series against a dedicated right axis pinned to 0–100%. Used to pair an absolute count with
-        /// its share of a capacity (e.g. alive vs % of limit, death rate vs % of population).
-        /// </summary>
-        public void SetLinePercentRight(double[] primary, double[] percent)
+        private void DrawLines(Graphics graphics, Rectangle plot)
         {
-            Plot plot = _plot.Plot;
-            plot.Clear();
-            ApplyTitle(plot);
+            double min = BaselineZero ? 0 : Minimum(primary, secondary);
+            double max = Maximum(primary, kind == ChartKind.LinePercent ? Array.Empty<double>() : secondary);
+            if (max <= min)
+                max = min + 1;
 
-            bool hasPrimary = primary != null && primary.Length > 0;
-            bool hasPercent = percent != null && percent.Length > 0;
-            if (!hasPrimary && !hasPercent)
+            DrawLine(graphics, plot, primary, min, max, PrimaryColor);
+            if (secondary.Length > 0)
             {
-                ShowCollecting(plot);
-                _plot.Refresh();
+                double secondaryMin = kind == ChartKind.LinePercent ? 0 : min;
+                double secondaryMax = kind == ChartKind.LinePercent ? 100 : max;
+                DrawLine(graphics, plot, secondary, secondaryMin, secondaryMax, SecondaryColor);
+            }
+        }
+
+        private void DrawBars(Graphics graphics, Rectangle plot)
+        {
+            double max = Math.Max(1, primary.Max());
+            float slot = (float)plot.Width / primary.Length;
+            using var brush = new SolidBrush(PrimaryColor);
+            for (int i = 0; i < primary.Length; i++)
+            {
+                float height = (float)(Math.Max(0, primary[i]) / max * plot.Height);
+                graphics.FillRectangle(brush, plot.Left + i * slot + 1, plot.Bottom - height,
+                    Math.Max(1, slot - 2), height);
+                if (i < labels.Length && labels.Length <= 12)
+                    graphics.DrawString(labels[i], Font, Brushes.DimGray, plot.Left + i * slot, plot.Bottom + 2);
+            }
+        }
+
+        private static void DrawLine(Graphics graphics, Rectangle plot, double[] values,
+            double min, double max, Color color)
+        {
+            if (values.Length == 0)
                 return;
-            }
 
-            if (hasPrimary)
+            using var pen = new Pen(color, 2);
+            PointF PreviousPoint(int index) => new PointF(
+                plot.Left + (values.Length == 1 ? 0 : (float)index / (values.Length - 1) * plot.Width),
+                plot.Bottom - (float)((values[index] - min) / (max - min) * plot.Height));
+
+            PointF previous = PreviousPoint(0);
+            if (values.Length == 1)
+                graphics.DrawEllipse(pen, previous.X - 1, previous.Y - 1, 2, 2);
+            for (int i = 1; i < values.Length; i++)
             {
-                var sig = plot.Add.Signal(primary);
-                sig.Color = ToColor(PrimaryColor);
-                sig.LineWidth = 2;
-                sig.LegendText = PrimaryLabel;
+                PointF current = PreviousPoint(i);
+                graphics.DrawLine(pen, previous, current);
+                previous = current;
             }
-
-            IYAxis right = EnsureRightAxis(plot);
-            if (hasPercent)
-            {
-                var sigP = plot.Add.Signal(percent);
-                sigP.Color = ToColor(SecondaryColor);
-                sigP.LineWidth = 2;
-                sigP.LegendText = SecondaryLabel;
-                sigP.Axes.YAxis = right;
-            }
-
-            plot.ShowLegend(Alignment.UpperLeft);
-
-            // Auto-scale the left/X axes from the primary series, force the left baseline to zero,
-            // then pin the right axis to a fixed 0–100% range.
-            plot.Axes.AutoScale();
-            if (BaselineZero)
-            {
-                AxisLimits lim = plot.Axes.GetLimits();
-                plot.Axes.SetLimitsY(Math.Min(0, lim.Bottom), lim.Top);
-            }
-            plot.Axes.SetLimitsY(0, 100, right);
-
-            _plot.Refresh();
         }
 
-        /// <summary>Draws a single bar series, optionally labelled along the X axis.</summary>
-        public void SetBars(double[] values, string[] labels = null)
+        private void DrawLegend(Graphics graphics, Rectangle plot)
         {
-            Plot plot = _plot.Plot;
-            plot.Clear();
-            ApplyTitle(plot);
-            plot.HideLegend();
-
-            if (values == null || values.Length == 0)
+            float x = plot.Left + 6;
+            if (!string.IsNullOrWhiteSpace(PrimaryLabel))
             {
-                ShowCollecting(plot);
-                _plot.Refresh();
-                return;
+                using var brush = new SolidBrush(PrimaryColor);
+                graphics.FillRectangle(brush, x, plot.Top + 5, 10, 3);
+                graphics.DrawString(PrimaryLabel, Font, Brushes.DimGray, x + 14, plot.Top);
+                x += graphics.MeasureString(PrimaryLabel, Font).Width + 28;
             }
-
-            ScottPlot.Plottables.BarPlot bars = plot.Add.Bars(values);
-            ScottPlot.Color color = ToColor(PrimaryColor);
-            foreach (Bar bar in bars.Bars)
+            if (!string.IsNullOrWhiteSpace(SecondaryLabel) && secondary.Length > 0)
             {
-                bar.FillColor = color;
-                bar.LineWidth = 0;
+                using var brush = new SolidBrush(SecondaryColor);
+                graphics.FillRectangle(brush, x, plot.Top + 5, 10, 3);
+                graphics.DrawString(SecondaryLabel, Font, Brushes.DimGray, x + 14, plot.Top);
             }
-
-            if (labels != null && labels.Length > 0)
-            {
-                double[] positions = new double[labels.Length];
-                for (int i = 0; i < labels.Length; i++)
-                    positions[i] = i;
-                plot.Axes.Bottom.SetTicks(positions, labels);
-            }
-
-            plot.Axes.AutoScale();
-            AxisLimits lim = plot.Axes.GetLimits();
-            plot.Axes.SetLimitsY(0, lim.Top <= 0 ? 1 : lim.Top);
-
-            _plot.Refresh();
         }
 
-        // Creates the right "%" axis once and reuses it; Plot.Clear() keeps axes, so re-adding each
-        // refresh would stack duplicates.
-        private IYAxis EnsureRightAxis(Plot plot)
-        {
-            if (_rightAxis == null)
-            {
-                var axis = plot.Axes.AddRightAxis();
-                axis.LabelText = "%";
-                axis.LabelFontColor = ToColor(SecondaryColor);
-                axis.TickLabelStyle.ForeColor = ToColor(SecondaryColor);
-                _rightAxis = axis;
-            }
-            return _rightAxis;
-        }
+        private static double[] Copy(double[] values) => values?.ToArray() ?? Array.Empty<double>();
 
-        private void ApplyTitle(Plot plot)
-        {
-            if (string.IsNullOrEmpty(Caption))
-                return;
-            plot.Title(Caption);
-            plot.Axes.Title.Label.FontSize = 13;
-        }
+        private static double Minimum(double[] first, double[] second) =>
+            first.Concat(second).DefaultIfEmpty(0).Min();
 
-        private static void ShowCollecting(Plot plot)
-        {
-            plot.Add.Annotation("collecting data…");
-        }
+        private static double Maximum(double[] first, double[] second) =>
+            first.Concat(second).DefaultIfEmpty(0).Max();
 
-        private static void StyleClean(Plot plot)
-        {
-            plot.FigureBackground.Color = new ScottPlot.Color(255, 255, 255);
-            plot.DataBackground.Color = new ScottPlot.Color(255, 255, 255);
-            plot.Grid.MajorLineColor = new ScottPlot.Color(235, 238, 242);
-            plot.Axes.Color(new ScottPlot.Color(120, 126, 136));
-        }
-
-        private static ScottPlot.Color ToColor(Color c) => new ScottPlot.Color(c.R, c.G, c.B, c.A);
+        private enum ChartKind { Line, LinePercent, Bars }
     }
 }

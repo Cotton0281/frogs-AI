@@ -89,14 +89,6 @@ namespace AI_Evlo_Test.Objects
 
 
         }
-        public void RotateTo(Point ptDirection)
-        {
-            FaceDirection = Point.Subtract(ptDirection, location);
-            double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), FaceDirection);
-            if (VisibleShape != null)
-                VisibleShape.RenderTransform = new System.Windows.Media.RotateTransform(anglFromVertical);
-        }
-
         /// <summary>
         /// Returns true if this object's circular bounds overlap with another object.
         /// Uses Size as the diameter of each object's bounding circle.
@@ -109,7 +101,7 @@ namespace AI_Evlo_Test.Objects
             double distSq = delta.LengthSquared;
             double minDist = radiusA + radiusB;
 
-            return distSq > 0 && distSq < minDist * minDist;
+            return distSq < minDist * minDist;
         }
 
         /// <summary>
@@ -125,12 +117,21 @@ namespace AI_Evlo_Test.Objects
             double radiusB = b.Size / 2.0;
             double minDist = radiusA + radiusB;
 
-            if (dist >= minDist || dist == 0)
+            if (dist >= minDist)
                 return;
 
             // Unit normal from a toward b
-            Vector normal = delta;
-            normal.Normalize();
+            Vector normal;
+            if (dist == 0)
+            {
+                // A deterministic fallback prevents coincident objects from remaining stuck.
+                normal = new Vector(1, 0);
+            }
+            else
+            {
+                normal = delta;
+                normal.Normalize();
+            }
 
             // Separate objects so they no longer overlap
             double overlap = minDist - dist;
@@ -149,17 +150,6 @@ namespace AI_Evlo_Test.Objects
             // Equal-mass elastic collision: swap the normal-component of velocities
             a.Intertia += Vector.Multiply(normal, bSpeed - aSpeed);
             b.Intertia += Vector.Multiply(normal, aSpeed - bSpeed);
-        }
-
-        /// <summary>
-        /// Resolves all pair-wise elastic bounces for a list of objects.
-        /// Call once per tick after all objects have moved.
-        /// </summary>
-        public static void ResolveAllCollisions(List<BasicObject> objects)
-        {
-            for (int i = 0; i < objects.Count; i++)
-                for (int j = i + 1; j < objects.Count; j++)
-                    ResolveElasticBounce(objects[i], objects[j]);
         }
 
         internal void Dispose()

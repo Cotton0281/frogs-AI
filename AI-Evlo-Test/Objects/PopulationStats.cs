@@ -78,7 +78,7 @@ namespace AI_Evlo_Test.Objects
             lastSampleCycle = currentCycle;
 
             int alive = 0;
-            double top = 0, fitnessSum = 0, ageSum = 0;
+            double top = double.NegativeInfinity, fitnessSum = 0, ageSum = 0;
             List<ISmartObject> members = population.Members;
             for (int i = 0; i < members.Count; i++)
             {
@@ -99,7 +99,7 @@ namespace AI_Evlo_Test.Objects
                 Cycle = currentCycle,
                 Alive = alive,
                 TotalEver = population.TotalMembersCount,
-                TopFitness = top,
+                TopFitness = alive > 0 ? top : 0,
                 MeanFitness = alive > 0 ? fitnessSum / alive : 0,
                 MeanAge = alive > 0 ? ageSum / alive : 0
             };

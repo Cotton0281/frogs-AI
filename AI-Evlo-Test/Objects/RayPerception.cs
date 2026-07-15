@@ -336,20 +336,6 @@ namespace AI_Evlo_Test.Objects
         }
 
         /// <summary>
-        /// Returns flat input array for the NN: optional scalar extras prepended + ray signals.
-        /// </summary>
-        public double[] GetInputs(params double[] extraInputs)
-        {
-            if (extraInputs == null || extraInputs.Length == 0)
-                return Signals;
-
-            double[] combined = new double[extraInputs.Length + Signals.Length];
-            Array.Copy(extraInputs, 0, combined, 0, extraInputs.Length);
-            Array.Copy(Signals, 0, combined, extraInputs.Length, Signals.Length);
-            return combined;
-        }
-
-        /// <summary>
         /// Fills the provided buffer with the given extras prepended and then the ray signals.
         /// </summary>
         public void FillInputs(double[] buffer, double hpDeficit, double[] memory)

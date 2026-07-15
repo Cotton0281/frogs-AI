@@ -13,11 +13,12 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using AI_Evlo_Test.Objects;
+using AI_Evlo_Test.Persistence;
+using AI.Evlo.Core.Simulation;
 using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.Factories;
 using ArtificialNeuralNetwork.Genes;
 using ArtificialNeuralNetwork.WeightInitializer;
-using AI_Evlo_Test.Extentions;
 using AI_Evlo_Test.ConfigLib;
 using System.Collections.ObjectModel;
 using AI_Evlo_Test.Enumerators;
@@ -106,8 +107,8 @@ namespace AI_Evlo_Test
         // snapshots (via CompositionTarget.Rendering). simLock guards every access to the
         // shared model state (lsObjects, populations, targets) from both threads.
         private readonly object simLock = new object();
-        private System.Threading.Thread simThread;
-        volatile bool simulationRunning = false;
+        private readonly SimulationRunner simulationRunner;
+        private bool simulationRunning => simulationRunner?.IsRunning == true;
         // Per-step sleep in ms, derived from the Speed slider. 0 = run flat-out (max).
         volatile int simStepDelayMs = 0;
 
@@ -123,6 +124,10 @@ namespace AI_Evlo_Test
         {
 
             InitializeComponent();
+            simulationRunner = new SimulationRunner(
+                ExecuteSimulationBatch,
+                () => isHeadlessMode ? headlessBatchSize : 1,
+                () => simStepDelayMs);
             LoadMovementSettings();
             ApplyClockSpeed();
             CompositionTarget.Rendering += OnRendering;
@@ -192,36 +197,18 @@ namespace AI_Evlo_Test
 
         // Background simulation loop. Owns the model and steps it under simLock; the UI thread
         // only reads the model (for rendering) while holding the same lock.
-        private void SimulationLoop()
+        private void ExecuteSimulationBatch(int batch)
         {
-            while (simulationRunning)
+            lock (simLock)
             {
-                int batch = isHeadlessMode ? headlessBatchSize : 1;
-                lock (simLock)
-                {
-                    for (int i = 0; i < batch && simulationRunning; i++)
-                        SimulationTick();
-                }
-
-                int delay = simStepDelayMs;
-                if (delay > 0)
-                    System.Threading.Thread.Sleep(delay);
+                for (int i = 0; i < batch && simulationRunning; i++)
+                    SimulationTick();
             }
         }
 
         private void EvoChember_NewMessage(string Message)
         {
             Log(Message);
-        }
-
-        /// <summary>
-        /// Handler of Object event changing location
-        /// </summary>
-        /// <param name="objWithNeuroNet"></param>
-        /// <param name="ObjectLocation"></param>
-        private void ObjectMoved(IBasicObject objWithNeuroNet, Point ObjectLocation)
-        {
-            DrawImage(objWithNeuroNet.VisibleShape, ObjectLocation);
         }
 
         private static void DrawImage(FrameworkElement ShapeOfObject, Point ObjecLocation)
@@ -514,9 +501,15 @@ namespace AI_Evlo_Test
                 _populationListForm = new PopulationList();
                 _populationListForm.FormClosed += (s, args) => _populationListForm = null;
             }
-            _populationListForm.SetDataSource(population);
+            _populationListForm.SetSnapshotProvider(() => BuildPopulationListSnapshot(population));
             _populationListForm.Show();
             _populationListForm.BringToFront();
+        }
+
+        private PopulationListSnapshot BuildPopulationListSnapshot(Population population)
+        {
+            lock (simLock)
+                return PopulationListSnapshot.Capture(population);
         }
 
         private void DeletePopulation(Population population)
@@ -684,15 +677,6 @@ namespace AI_Evlo_Test
         private void FormVisualNet_VisualizerSendMessage(string Message)
         {
             Log(Message);
-        }
-
-        private void TxtCreateObjectsNumber_TextChanged(object sender, TextChangedEventArgs e)
-        {
-
-        }
-
-        private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
         }
 
         private void DdlPopulationName_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -885,10 +869,6 @@ namespace AI_Evlo_Test
             }
         }
 
-        private void WindowEnvirnoment_MouseMove(object sender, MouseEventArgs e)
-        {
-        }
-
         private static double NextRandomDouble()
         {
             lock (RndLock)
@@ -961,8 +941,6 @@ namespace AI_Evlo_Test
             Log(isHeadlessMode ? "Headless mode ON — rendering skipped for faster training" : "Headless mode OFF — rendering resumed");
         }
 
-        BasicObject obj2 = new BasicObject() { ID = "01", Size = 20, };
-
         private void panlUniverseView_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             canvasWidth = panlUniverseView.ActualWidth;
@@ -986,9 +964,7 @@ namespace AI_Evlo_Test
 
         private void windowEnvirnoment_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            simulationRunning = false;   // signal the background loop to stop
-            if (simThread != null && simThread.IsAlive)
-                simThread.Join(1000);
+            simulationRunner.Stop(TimeSpan.FromSeconds(1));
             Objects.WindowBoundsStore.Save("MainWindow", ActualWidth, ActualHeight);
             SaveMovementSettings();
             SaveSession();
@@ -1072,9 +1048,7 @@ namespace AI_Evlo_Test
         {
             try
             {
-                WriteToJsonFile(SessionFilePath, lsPopulations.ToList());
-
-                CleanupLegacyPopulationFiles(SaveDirectory);
+                new SessionStore(SaveDirectory).Save(lsPopulations.ToList());
             }
             catch (Exception ex)
             {
@@ -1084,14 +1058,7 @@ namespace AI_Evlo_Test
 
         internal static void CleanupLegacyPopulationFiles(string directory)
         {
-            foreach (string f in Directory.GetFiles(directory, "*.json"))
-            {
-                string fileName = System.IO.Path.GetFileName(f);
-                bool isCurrentSessionFile = string.Equals(fileName, "session.json", StringComparison.OrdinalIgnoreCase);
-                bool isMovementSettingsFile = string.Equals(fileName, "movement-settings.json", StringComparison.OrdinalIgnoreCase);
-                if (!isCurrentSessionFile && !isMovementSettingsFile)
-                    File.Delete(f);
-            }
+            new SessionStore(directory).CleanupLegacyFiles();
         }
 
         /// <summary>
@@ -1119,13 +1086,7 @@ namespace AI_Evlo_Test
             int count = 0;
             try
             {
-                List<Population> pops = null;
-                if (File.Exists(SessionFilePath))
-                    pops = ReadFromJsonFile<List<Population>>(SessionFilePath);
-
-                // One-time migration: if there is no session file yet, gather legacy per-GUID files.
-                if (pops == null || pops.Count == 0)
-                    pops = LoadLegacyPopulationFiles();
+                List<Population> pops = new SessionStore(SaveDirectory).Load();
 
                 if (pops != null)
                 {
@@ -1155,20 +1116,7 @@ namespace AI_Evlo_Test
         /// <summary>Reads populations from the old per-population GUID files (pre-session-file format).</summary>
         private List<Population> LoadLegacyPopulationFiles()
         {
-            var list = new List<Population>();
-            foreach (string file in Directory.GetFiles(SaveDirectory, "*.json"))
-            {
-                if (string.Equals(System.IO.Path.GetFileName(file), "session.json", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                try
-                {
-                    Population p = ReadFromJsonFile<Population>(file);
-                    if (p != null)
-                        list.Add(p);
-                }
-                catch { /* skip unreadable legacy file */ }
-            }
-            return list;
+            return new SessionStore(SaveDirectory).LoadLegacyFiles();
         }
 
         /// <summary>Rebuilds runtime state for a deserialized population and grows live members from its archived genes.</summary>
@@ -1269,22 +1217,11 @@ namespace AI_Evlo_Test
             if (simulationRunning)
                 return;
 
-            // Make sure any previous loop has fully exited before starting a new one.
-            if (simThread != null && simThread.IsAlive)
-                simThread.Join();
-
-            simulationRunning = true;
             btnStart.Content = "⏸ Pause";    // pause glyph
             btnStart.Background = HpOrange;        // amber = running
             Log("Started at " + DateTime.Now.ToShortTimeString());
 
-            simThread = new System.Threading.Thread(SimulationLoop)
-            {
-                IsBackground = true,
-                Priority = System.Threading.ThreadPriority.BelowNormal,
-                Name = "SimulationLoop"
-            };
-            simThread.Start();
+            simulationRunner.Start();
         }
 
         private void StopSimulation()
@@ -1292,7 +1229,7 @@ namespace AI_Evlo_Test
             if (!simulationRunning)
                 return;
 
-            simulationRunning = false;             // the loop exits after its current step
+            simulationRunner.Stop();
             btnStart.Content = "▶ Start";    // play glyph
             btnStart.Background = HpGreen;         // green = ready
             Log($"Paused {DateTime.Now.ToShortTimeString()}");
@@ -1311,18 +1248,11 @@ namespace AI_Evlo_Test
         public static void WriteToJsonFile<T>(string filePath, T objectToWrite, bool append = false) where T : new()
         {
             var jsonSettings = new JsonSerializerSettings { PreserveReferencesHandling = PreserveReferencesHandling.Objects };
-            TextWriter writer = null;
-            try
-            {
-                var contentsToWriteToFile = JsonConvert.SerializeObject(objectToWrite, Formatting.Indented, jsonSettings);
-                writer = new StreamWriter(filePath, append);
-                writer.Write(contentsToWriteToFile);
-            }
-            finally
-            {
-                if (writer != null)
-                    writer.Close();
-            }
+            var contentsToWriteToFile = JsonConvert.SerializeObject(objectToWrite, Formatting.Indented, jsonSettings);
+            if (append)
+                File.AppendAllText(filePath, contentsToWriteToFile);
+            else
+                SessionStore.AtomicWrite(filePath, contentsToWriteToFile);
         }
 
         /// <summary>

@@ -24,6 +24,29 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
+        public void MutateGenom_WithSameSeed_ProducesSameMutation()
+        {
+            NeuralNetworkGene first = CreateTestGenesWithHiddenLayer();
+            NeuralNetworkGene second = CreateTestGenesWithHiddenLayer();
+
+            new EvolutionChember(12345).MutateGenom(first, 4, false);
+            new EvolutionChember(12345).MutateGenom(second, 4, false);
+
+            CollectionAssert.AreEqual(FlattenGeneValues(first).ToList(), FlattenGeneValues(second).ToList());
+        }
+
+        [TestMethod]
+        public void MutateGenom_AtOneHundredPercent_DoesNotMutateInputBiases()
+        {
+            NeuralNetworkGene genes = CreateTestGenesWithHiddenLayer();
+            double[] inputBiases = genes.InputGene.Neurons.Select(neuron => neuron.Soma.Bias).ToArray();
+
+            new EvolutionChember(7).MutateGenom(genes, 100, true);
+
+            CollectionAssert.AreEqual(inputBiases, genes.InputGene.Neurons.Select(neuron => neuron.Soma.Bias).ToArray());
+        }
+
+        [TestMethod]
         public void MutateNN_NullNetwork_ReturnsNull()
         {
             // Arrange

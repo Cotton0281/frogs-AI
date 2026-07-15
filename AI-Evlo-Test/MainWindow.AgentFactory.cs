@@ -356,13 +356,6 @@ namespace AI_Evlo_Test
 
         // The factory methods below build model-only agents (no WPF). The visual is created
         // lazily on the UI thread by ReconcileVisuals so these can run on the simulation thread.
-        private SmartObject NewSmartObject2(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
-        {
-            SmartObject newObj = new SmartObject(NeuroNetTemplate, ref randomInit);
-            SetInitialAgentLocation(newObj);
-            return newObj;
-        }
-
         private Bird NewBird(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             Bird newObj = new Bird(NeuroNetTemplate, ref randomInit);
@@ -421,80 +414,21 @@ namespace AI_Evlo_Test
 
                     TryUpdateGoldenAverage(pop, obj);
 
-                    // Use Count*2 instead Size/2 because these are integers. Library of genes is half the population
-                    double worstBestFitness = pop.lsBestGenes.Count > 0
-                        ? pop.lsBestGenes[pop.lsBestGenes.Count - 1].Fitness
-                        : double.MinValue;
-                    if (pop.lsBestGenes.Count * 2 <= pop.SizeLimit || obj.Fitness > worstBestFitness)
-                    {
-                        GenomeRecord newGeneEval = new GenomeRecord()
-                        {
-                            Fitness = obj.Fitness,
-                            Gene = obj.NNetwork.GetGenes(),
-                            Generation = obj.Generation,
-                            ID = obj.ID.ToString()
-                        };
+                    PopulationArchive.Add(pop, obj);
 
                         // Binary search insert to keep list sorted descending — avoids full re-sort
-                        int insertIdx = pop.lsBestGenes.FindIndex(g => g.Fitness <= newGeneEval.Fitness);
-                        if (insertIdx < 0)
-                            pop.lsBestGenes.Add(newGeneEval);
-                        else
-                            pop.lsBestGenes.Insert(insertIdx, newGeneEval);
-                    }
 
                     //remove the worst of the best. This also will shrink lsBestGenes after population resizing.
                     // List is kept sorted descending, so worst entries are at the end
-                    while (pop.lsBestGenes.Count > 0 && pop.lsBestGenes.Count * 2 >= pop.SizeLimit)
-                    {
-                        int lastIdx = pop.lsBestGenes.Count - 1;
-                        pop.lsBestGenes[lastIdx].Gene = null;
-                        pop.lsBestGenes.RemoveAt(lastIdx);
-                    }
                 }
 
                 //remove from lists
                 lsObjects.Remove(obj);
                 foreach (Population pop in lsPopulations)
                     pop.Members.Remove(obj);
-                //obj.OnLocationChanged -= ObjectMoved;
-
                 obj.Dispose();
                 obj = null;
             }
-        }
-
-        private ISmartObject CreateOffspring(ISmartObject objParent, Population population)
-        {
-            // Create new NeuroNet with modifications
-            INeuralNetwork NNetworkMutated = Utils.CloneNeuroNet(objParent.NNetwork);
-            objParent.Ofsprings++;
-            NNetworkMutated = evoChember.MutateNN(NNetworkMutated, 1, false);
-            ISmartObject newGenerationObj;
-            if (objParent is Bird || population.Being == PopulationBeing.Bird)
-                newGenerationObj = new Bird(NNetworkMutated);
-            else if (objParent is Shark || population.Being == PopulationBeing.Shark)
-                newGenerationObj = new Shark(NNetworkMutated);
-            else if (objParent is Frog)
-                newGenerationObj = new Frog(NNetworkMutated);
-            else
-                newGenerationObj = new SmartObject(NNetworkMutated);
-            if (!isHeadlessMode)
-                EnsureVisualForObject(newGenerationObj, population);
-
-            // newGenerationObj.OnLocationChanged += ObjectMoved;
-            //double initLocationX = Rnd.Next(0, (int)panlUniverseView.ActualWidth);
-            //double initLocationY = Rnd.Next(0, (int)panlUniverseView.ActualHeight);
-            newGenerationObj.SetLocation(objParent.Location.X + 1, objParent.Location.Y + 1);
-            if (!isHeadlessMode && newGenerationObj.VisibleShape != null)
-            {
-                DrawImage(newGenerationObj.VisibleShape, newGenerationObj.Location);
-            }
-            newGenerationObj.ID = population.GenerateMemberId(objParent);
-            newGenerationObj.Generation = objParent.Generation + 1;
-            newGenerationObj.HP = objParent.HP;
-            newGenerationObj.ParentId = objParent.ID;
-            return newGenerationObj;
         }
 
         private void EnsureVisualForObject(ISmartObject smartObject, Population populationHint = null)
@@ -549,33 +483,6 @@ namespace AI_Evlo_Test
 
             panlUniverseView.Children.Add(myEllipse);
             return myEllipse;
-        }
-
-        private FrameworkElement CreateNewImage(String imageFile = "raft.png")
-        {
-            System.IO.Directory.GetCurrentDirectory();
-            Uri ur = new Uri(System.IO.Directory.GetCurrentDirectory() + "\\img\\" + imageFile);
-
-            // Create Image and set its width and height  
-            Image dynamicImage = new Image();
-            dynamicImage.Width = 200;
-            dynamicImage.Height = 200;
-
-            // Create a BitmapSource  
-            BitmapImage bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.UriSource = ur;
-            bitmap.EndInit();
-
-            // Set Image.Source  
-            dynamicImage.Source = bitmap;
-            // Add Image to Window  
-            panlUniverseView.Children.Add(dynamicImage);
-
-            Canvas.SetTop(dynamicImage, 67);
-            Canvas.SetLeft(dynamicImage, 66);
-
-            return dynamicImage;
         }
 
         private FrameworkElement CreateNewBirdImage()
@@ -652,36 +559,6 @@ namespace AI_Evlo_Test
 
             Canvas.SetTop(dynamicImage, 67);
             Canvas.SetLeft(dynamicImage, 66);
-
-            return dynamicImage;
-        }
-
-        private FrameworkElement CreateNewImage(ISmartObject objParent)
-        {
-            var oldImage= (objParent.VisibleShape as Image);
-
-            System.IO.Directory.GetCurrentDirectory();
-            //Uri ur = new Uri(System.IO.Directory.GetCurrentDirectory() + "\\img\\" + imageFile);
-
-            // Create Image and set its width and height  
-            Image dynamicImage = new Image();
-            dynamicImage.Width = oldImage.ActualWidth;
-            dynamicImage.Height = oldImage.ActualHeight;
-
-            // Create a BitmapSource  
-            //BitmapImage bitmap = new BitmapImage();
-            //bitmap.BeginInit();
-            //bitmap.UriSource = ur;
-            //bitmap.EndInit();
-
-            // Set Image.Source  
-            dynamicImage.Source = oldImage.Source.CloneCurrentValue();
-            // Add Image to Window  
-            panlUniverseView.Children.Add(dynamicImage);
-
-            // get random location close to the parent
-            Canvas.SetTop(dynamicImage, objParent.Location.Y + NextRandom(-20, 20));
-            Canvas.SetLeft(dynamicImage, objParent.Location.X + NextRandom(-20, 20));
 
             return dynamicImage;
         }

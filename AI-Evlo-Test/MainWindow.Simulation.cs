@@ -707,15 +707,12 @@ namespace AI_Evlo_Test
                 if (pop.LifeCycles == 0 || pop.Members.Count == 0)
                     continue;
 
-                int liveMembers = 0;
+                int liveMembers = pop.Members.Count(member => member != null && member.HP > 0);
                 double totalFitness = 0;
 
                 for (int memberIndex = 0; memberIndex < pop.Members.Count; memberIndex++)
                 {
                     ISmartObject member = pop.Members[memberIndex];
-                    if (member.Fitness > 0)
-                        liveMembers++;
-
                     totalFitness += member.Fitness;
                 }
 
@@ -798,7 +795,7 @@ namespace AI_Evlo_Test
                 return;
 
             int aliveCount = 0;
-            double topFitness = 0;
+            double topFitness = double.NegativeInfinity;
             for (int i = 0; i < lsObjects.Count; i++)
             {
                 ISmartObject o = lsObjects[i];
@@ -809,6 +806,9 @@ namespace AI_Evlo_Test
                 if (o.Fitness > topFitness)
                     topFitness = o.Fitness;
             }
+
+            if (double.IsNegativeInfinity(topFitness))
+                topFitness = 0;
 
             PushSparkSample(_sparkAlive, aliveCount);
             PushSparkSample(_sparkFitness, topFitness);

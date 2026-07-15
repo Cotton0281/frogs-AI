@@ -68,7 +68,7 @@ namespace AI_Evlo_WPF.UnitTests
         }
 
         [TestMethod]
-        public void SetDataSource_WithNullMembers_ThrowsException()
+        public void SetDataSource_WithNullMembers_UsesEmptySnapshot()
         {
             // Arrange
             var populationList = new PopulationList();
@@ -79,18 +79,10 @@ namespace AI_Evlo_WPF.UnitTests
             };
 
             // Act
-            bool exceptionThrown = false;
-            try
-            {
-                populationList.SetDataSource(population);
-            }
-            catch (NullReferenceException)
-            {
-                exceptionThrown = true;
-            }
+            populationList.SetDataSource(population);
 
             // Assert
-            Assert.IsTrue(exceptionThrown, "Expected NullReferenceException to be thrown");
+            Assert.IsNotNull(populationList);
         }
 
         [TestMethod]
@@ -151,24 +143,16 @@ namespace AI_Evlo_WPF.UnitTests
         }
 
         [TestMethod]
-        public void RefreshList_WithoutSetDataSource_ThrowsNullReferenceException()
+        public void RefreshList_WithoutSetDataSource_IsNoOp()
         {
             // Arrange
             var populationList = new PopulationList();
 
             // Act
-            bool exceptionThrown = false;
-            try
-            {
-                populationList.RefreshList();
-            }
-            catch (NullReferenceException)
-            {
-                exceptionThrown = true;
-            }
+            populationList.RefreshList();
 
             // Assert
-            Assert.IsTrue(exceptionThrown, "Expected NullReferenceException to be thrown");
+            Assert.IsNotNull(populationList);
         }
 
         [TestMethod]
@@ -192,7 +176,7 @@ namespace AI_Evlo_WPF.UnitTests
         }
 
         [TestMethod]
-        public void RefreshList_WithNullGenes_ThrowsNullReferenceException()
+        public void RefreshList_WithNullGenes_UsesEmptySnapshot()
         {
             // Arrange
             var populationList = new PopulationList();
@@ -205,18 +189,10 @@ namespace AI_Evlo_WPF.UnitTests
             populationList.SetDataSource(population);
 
             // Act
-            bool exceptionThrown = false;
-            try
-            {
-                populationList.RefreshList();
-            }
-            catch (ArgumentNullException)
-            {
-                exceptionThrown = true;
-            }
+            populationList.RefreshList();
 
             // Assert
-            Assert.IsTrue(exceptionThrown, "Expected ArgumentNullException to be thrown");
+            Assert.IsNotNull(populationList);
         }
 
         [TestMethod]

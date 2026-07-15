@@ -1035,10 +1035,12 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Directory.CreateDirectory(dir);
             string sessionPath = Path.Combine(dir, "session.json");
             string movementSettingsPath = Path.Combine(dir, "movement-settings.json");
-            string legacyPath = Path.Combine(dir, "old-population.json");
+            string legacyPath = Path.Combine(dir, Guid.NewGuid() + ".json");
+            string unrelatedPath = Path.Combine(dir, "unrelated.json");
             File.WriteAllText(sessionPath, "{}");
             File.WriteAllText(movementSettingsPath, "{}");
             File.WriteAllText(legacyPath, "{}");
+            File.WriteAllText(unrelatedPath, "{}");
 
             try
             {
@@ -1049,6 +1051,7 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 Assert.IsTrue(File.Exists(sessionPath));
                 Assert.IsTrue(File.Exists(movementSettingsPath));
                 Assert.IsFalse(File.Exists(legacyPath));
+                Assert.IsTrue(File.Exists(unrelatedPath));
             }
             finally
             {

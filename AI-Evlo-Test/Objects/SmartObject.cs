@@ -117,7 +117,17 @@ namespace AI_Evlo_Test.Objects
 
         static public int MaxHp { get; set; } = 300;
         public static double MaxSpeed { get; set; } = 1.5;
-        public static MovementSettings MovementSettings { get; set; } = new MovementSettings();
+        private static MovementSettings movementSettings = new MovementSettings();
+        public static MovementSettings MovementSettings
+        {
+            get => movementSettings;
+            set
+            {
+                MovementSettings normalized = (value ?? new MovementSettings()).Clone();
+                normalized.Normalize();
+                movementSettings = normalized;
+            }
+        }
         public const double BaseHpDrain = 0.35;
         public const int MemorySize = 2;
         public const int MovementOutputCount = 2;
@@ -269,8 +279,7 @@ namespace AI_Evlo_Test.Objects
 
         private void ApplyMovementHpCost(double rotationApplied, double thrustApplied)
         {
-            MovementSettings settings = MovementSettings ?? new MovementSettings();
-            settings.Normalize();
+            MovementSettings settings = MovementSettings;
             HP -= Math.Abs(rotationApplied) * settings.RotationHpCost;
             HP -= Math.Abs(thrustApplied) * settings.ThrustHpCost;
         }

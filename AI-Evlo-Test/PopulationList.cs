@@ -1,19 +1,15 @@
 ﻿using AI_Evlo_Test.Objects;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace AI_Evlo_Test
 {
     public partial class PopulationList : Form
     {
-        Population objPopulaion = null;
+        private Func<PopulationListSnapshot> snapshotProvider;
         public PopulationList()
         {
             InitializeComponent();
@@ -23,18 +19,26 @@ namespace AI_Evlo_Test
         }
         public void SetDataSource(Population population)
         {
-            objPopulaion = population;
-            if (objPopulaion.Members == null)
-            {
-                throw new NullReferenceException("Population Members cannot be null.");
-            }
-            dataGridView1.DataSource = objPopulaion.lsBestGenes?.ToList();
-            dataGridView2.DataSource = objPopulaion.Members;
+            if (population == null)
+                throw new ArgumentNullException(nameof(population));
+
+            SetSnapshotProvider(() => PopulationListSnapshot.Capture(population));
+        }
+
+        internal void SetSnapshotProvider(Func<PopulationListSnapshot> provider)
+        {
+            snapshotProvider = provider ?? throw new ArgumentNullException(nameof(provider));
+            RefreshList();
         }
 
         public void RefreshList()
         {
-            dataGridView1.DataSource = objPopulaion.lsBestGenes.OrderByDescending(o => o.Fitness).ToList();
+            PopulationListSnapshot snapshot = snapshotProvider?.Invoke();
+            if (snapshot == null)
+                return;
+
+            dataGridView1.DataSource = snapshot.ArchivedGenes;
+            dataGridView2.DataSource = snapshot.Members;
             dataGridView1.Refresh();
             dataGridView2.Refresh();
         }
@@ -55,5 +59,63 @@ namespace AI_Evlo_Test
             var x = e;
             var y = sender;
         }
+    }
+
+    internal sealed class PopulationListSnapshot
+    {
+        internal List<ArchivedGeneRow> ArchivedGenes { get; private set; } = new List<ArchivedGeneRow>();
+        internal List<PopulationMemberRow> Members { get; private set; } = new List<PopulationMemberRow>();
+
+        internal static PopulationListSnapshot Capture(Population population)
+        {
+            return new PopulationListSnapshot
+            {
+                ArchivedGenes = (population.lsBestGenes ?? new List<GenomeRecord>())
+                    .Where(gene => gene != null)
+                    .OrderByDescending(gene => gene.Fitness)
+                    .Select(gene => new ArchivedGeneRow(gene))
+                    .ToList(),
+                Members = (population.Members ?? new List<ISmartObject>())
+                    .Where(member => member != null)
+                    .Select(member => new PopulationMemberRow(member))
+                    .ToList()
+            };
+        }
+    }
+
+    internal sealed class ArchivedGeneRow
+    {
+        internal ArchivedGeneRow(GenomeRecord gene)
+        {
+            ID = gene.ID;
+            Fitness = gene.Fitness;
+            Generation = gene.Generation;
+            Ofsprings = gene.Ofsprings;
+        }
+
+        public string ID { get; }
+        public double Fitness { get; }
+        public int Generation { get; }
+        public int Ofsprings { get; }
+    }
+
+    internal sealed class PopulationMemberRow
+    {
+        internal PopulationMemberRow(ISmartObject member)
+        {
+            ID = member.ID;
+            Generation = member.Generation;
+            Fitness = member.Fitness;
+            HP = member.HP;
+            Cycles = member.Cycles;
+            Ofsprings = member.Ofsprings;
+        }
+
+        public string ID { get; }
+        public int Generation { get; }
+        public double Fitness { get; }
+        public double HP { get; }
+        public int Cycles { get; }
+        public int Ofsprings { get; }
     }
 }

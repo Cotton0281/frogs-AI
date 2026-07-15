@@ -15,18 +15,6 @@ using System.Windows.Shapes;
 
 namespace AI_Evlo_Test.Objects
 {
-    public interface IPopulation: IabstrPopulation<ISmartObject>
-    {
-        new List<ISmartObject> Members { get; set; }
-        Type ObjectType { get; }
-
-        new void Add(ISmartObject Member);
-        string ToJson();
-        new string ToString();
-       // new NeuroNetStructure NeuroNetTemplate { get; set; }
-
-    }
-
     public class Population : abstrPopulation<ISmartObject>, IabstrPopulation<ISmartObject>
     {
         private PopulationBeing being = PopulationBeing.Frog;
