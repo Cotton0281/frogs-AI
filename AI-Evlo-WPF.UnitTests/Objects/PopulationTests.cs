@@ -374,8 +374,8 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         [TestMethod]
         public void PopulationRegrowthPolicy_MarkSpawned_SchedulesNextSpawnByNaturalSurvivalTicksAndAdvancesMode()
         {
-            var frogPopulation = new Population { Being = PopulationBeing.Frog, RegrowModeIndex = 4 };
-            var wrappingFrogPopulation = new Population { Being = PopulationBeing.Frog, RegrowModeIndex = 5 };
+            var frogPopulation = new Population { Being = PopulationBeing.Frog, RegrowModeIndex = 3 };
+            var wrappingFrogPopulation = new Population { Being = PopulationBeing.Frog, RegrowModeIndex = 4 };
             var sharkPopulation = new Population { Being = PopulationBeing.Shark };
             var birdPopulation = new Population { Being = PopulationBeing.Bird };
 
@@ -387,14 +387,14 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Assert.AreEqual(1000 + (int)Math.Ceiling(SmartObject.MaxHp / SmartObject.BaseHpDrain), frogPopulation.NextRegrowCycle);
             Assert.AreEqual(1000 + (int)Math.Ceiling(Shark.SharkMaxHp / Shark.SwimHpDrain), sharkPopulation.NextRegrowCycle);
             Assert.AreEqual(1000 + (int)Math.Ceiling(Bird.BirdMaxHp / Bird.FlightHpDrain), birdPopulation.NextRegrowCycle);
-            Assert.AreEqual(5, frogPopulation.RegrowModeIndex);
+            Assert.AreEqual(4, frogPopulation.RegrowModeIndex);
             Assert.AreEqual(0, wrappingFrogPopulation.RegrowModeIndex);
         }
 
         [TestMethod]
         public void PopulationRegrowthPolicy_MarkSpawned_WhenSpawnDelayDisabled_AdvancesModeWithoutScheduling()
         {
-            var population = new Population { SpawnDelay = false, RegrowModeIndex = 5, NextRegrowCycle = 1000 };
+            var population = new Population { SpawnDelay = false, RegrowModeIndex = 4, NextRegrowCycle = 1000 };
 
             PopulationRegrowthPolicy.MarkSpawned(population, currentCycle: 1000);
 
@@ -413,14 +413,8 @@ namespace AI_Evlo_WPF.UnitTests.Objects
                 Cycles = 50,
                 NNetwork = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 18)
             };
-            var golden = new SmartObject
-            {
-                ID = "golden",
-                NNetwork = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 18)
-            };
             var population = new Population
             {
-                GoldenAgent = golden,
                 Members = new List<ISmartObject> { liveTop },
                 lsBestGenes = new List<GenomeRecord>
                 {
@@ -438,10 +432,6 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Assert.AreEqual(RegrowthBrainSourceKind.AliveBestMutated, PopulationRegrowthPolicy.SelectSource(population).Kind);
             population.RegrowModeIndex = 4;
             Assert.AreEqual(RegrowthBrainSourceKind.Random, PopulationRegrowthPolicy.SelectSource(population).Kind);
-            population.RegrowModeIndex = 5;
-            RegrowthBrainSource goldenSource = PopulationRegrowthPolicy.SelectSource(population);
-            Assert.AreEqual(RegrowthBrainSourceKind.GoldenAgentMutated, goldenSource.Kind);
-            Assert.AreSame(golden, goldenSource.AliveParent);
         }
 
         [TestMethod]
@@ -454,6 +444,32 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             Assert.AreEqual(RegrowthBrainSourceKind.Random, source.Kind);
             Assert.IsNull(source.AliveParent);
             Assert.IsNull(source.ArchivedParent);
+        }
+
+        [TestMethod]
+        public void PopulationRegrowthPolicy_SelectSource_NeverUsesGoldenAgentAsParent()
+        {
+            var factory = NeuralNetworkFactory.GetInstance();
+            var golden = new SmartObject
+            {
+                ID = "golden",
+                NNetwork = factory.Create(SmartObject.InputCount, SmartObject.OutputCount, 1, 18)
+            };
+            var population = new Population
+            {
+                GoldenAgent = golden,
+                Members = new List<ISmartObject>(),
+                lsBestGenes = new List<GenomeRecord>()
+            };
+
+            for (int mode = 0; mode < 5; mode++)
+            {
+                population.RegrowModeIndex = mode;
+                RegrowthBrainSource source = PopulationRegrowthPolicy.SelectSource(population);
+
+                Assert.AreEqual(RegrowthBrainSourceKind.Random, source.Kind);
+                Assert.AreNotSame(golden, source.AliveParent);
+            }
         }
 
         [TestMethod]

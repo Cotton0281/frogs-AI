@@ -38,7 +38,7 @@ namespace AI_Evlo_Test
             // remove the unsuccessful by looping backwards
             for (int i = totalObj - 1; i >= 0; i--)
             {
-                if (lsObjects[i].HP <= 0)
+                if (AgentWorldBoundaryPolicy.ShouldRetire(lsObjects[i], canvasWidth, canvasHeight))
                     DisposeObject(lsObjects[i]);
             }
             // Reselection of a dead inspected agent happens on the UI thread (OnRendering).
@@ -47,7 +47,7 @@ namespace AI_Evlo_Test
             foreach (Population Popul in lsPopulations)
             {
                 Popul.LifeCycles++;
-                Popul.Members.RemoveAll(o => o.HP <= 0);
+                Popul.Members.RemoveAll(o => AgentWorldBoundaryPolicy.ShouldRetire(o, canvasWidth, canvasHeight));
                 if (Popul.Members.Count < Popul.SizeLimit)
                     ReGrowPopulation(Popul);
 
@@ -62,11 +62,22 @@ namespace AI_Evlo_Test
         {
             foreach (Population population in lsPopulations)
             {
+                int longestSurvival = population.SurvivalRecordCycles;
                 for (int i = 0; i < population.Members.Count; i++)
                 {
                     ISmartObject member = population.Members[i];
+                    longestSurvival = Math.Max(longestSurvival, member?.Cycles ?? 0);
                     if (ShouldAttemptGoldenAverage(population, member))
                         TryUpdateGoldenAverage(population, member);
+                }
+
+                if (PopulationAutoGrowthPolicy.TryGrow(
+                    population,
+                    longestSurvival,
+                    out PopulationNetworkChangeResult growthResult))
+                {
+                    Log(growthResult.Message);
+                    SaveSession();
                 }
             }
         }

@@ -4,6 +4,7 @@ using ArtificialNeuralNetwork.ActivationFunctions;
 using ArtificialNeuralNetwork.Factories;
 using ArtificialNeuralNetwork.WeightInitializer;
 using System;
+using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Media;
@@ -354,8 +355,12 @@ namespace AI_Evlo_Test.Objects
                 .GetInstance(somaFactory, axonFactory, hiddenSynapseFactory,
                 ioSynapseFactory, randomInit, neuronFactory);
 
-            NNetwork = nnFactory.Create(nnStructure.Inputs, nnStructure.Outputs,
-                nnStructure.HiddenLayers, nnStructure.NeuronsInHiddenLayer);
+            var layerDefinitions = nnStructure.GetLayerDefinitions();
+            NNetwork = nnFactory.Create(
+                nnStructure.Inputs,
+                nnStructure.Outputs,
+                layerDefinitions.Select(layer => layer.NeuronCount).ToList(),
+                layerDefinitions.Select(layer => layer.Kind).ToList());
             HP = MaxHp;
             Perception = new RayPerception(centerRayMultiplier: 3.0);
         }

@@ -2,6 +2,7 @@
 using AI_Evlo_Test.Enumerators;
 using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.Genes;
+using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,11 +16,13 @@ using System.Windows.Shapes;
 
 namespace AI_Evlo_Test.Objects
 {
+
     public class Population : abstrPopulation<ISmartObject>, IabstrPopulation<ISmartObject>
     {
         private PopulationBeing being = PopulationBeing.Frog;
         private double goldenInitialThreshold;
         private double goldenThreshold;
+        private int mutationRate = 1;
 
         [Newtonsoft.Json.JsonIgnore]
         [System.Runtime.Serialization.IgnoreDataMember]
@@ -48,6 +51,15 @@ namespace AI_Evlo_Test.Objects
         public bool GoldenAgentEnabled { get; set; } = true;
         public bool SpawnDelay { get; set; } = true;
         public bool PauseMutation { get; set; } = false;
+        public int MutationRate
+        {
+            get => mutationRate;
+            set => mutationRate = Math.Clamp(value, 1, 20);
+        }
+        public List<bool> LayerLocks { get; set; } = new List<bool>();
+        public bool AutoGrowNeuralNetwork { get; set; } = false;
+        public int SurvivalRecordCycles { get; set; }
+        public int NextAutoGrowSurvivalCycles { get; set; }
         public NeuralNetworkGene GoldenAgentGene { get; set; }
 
         // Snapshot of the golden brain the moment the first survivor seeded it. Persisted so the
@@ -344,8 +356,7 @@ namespace AI_Evlo_Test.Objects
         ArchivedBestMutated,
         AliveBestExact,
         AliveBestMutated,
-        Random,
-        GoldenAgentMutated
+        Random
     }
 
     public sealed class RegrowthBrainSource
@@ -383,7 +394,7 @@ namespace AI_Evlo_Test.Objects
 
     public static class PopulationRegrowthPolicy
     {
-        private const int ModeCount = 6;
+        private const int ModeCount = 5;
 
         public static bool ShouldSpawn(Population population, int currentCycle)
         {
@@ -451,30 +462,26 @@ namespace AI_Evlo_Test.Objects
             }
         }
 
+
         public static RegrowthBrainSource SelectSource(Population population)
         {
             if (population == null)
                 return RegrowthBrainSource.Random();
 
-            int mode = population.RegrowModeIndex % ModeCount;
-            if (mode < 0)
-                mode += ModeCount;
+            // genreate random number 1 to 1000
+            int random1000 = DateAndTime.Now.Millisecond + 1;
 
-            switch (mode)
+            if (random1000 < 100) 
+                return BestOverall(population, mutate: false);  //10%  copy the best
+            else if (random1000 < 200)
+                return RegrowthBrainSource.Random();  //10 %
+            else if (random1000 < 300)
+                return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestMutated, BestAlive(population));  //10%
+            else
             {
-                case 0:
-                    return BestOverall(population, mutate: false);
-                case 1:
-                    return BestOverall(population, mutate: true);
-                case 2:
-                    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestExact, BestAlive(population));
-                case 3:
-                    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestMutated, BestAlive(population));
-                case 4:
-                    return RegrowthBrainSource.Random();
-                default:
-                    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.GoldenAgentMutated, population.GoldenAgent);
+                return BestOverall(population, mutate: true); //70%  evolve the best
             }
+            //    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestExact, BestAlive(population));
         }
 
         private static RegrowthBrainSource BestOverall(Population population, bool mutate)
@@ -501,7 +508,7 @@ namespace AI_Evlo_Test.Objects
                 .FirstOrDefault();
         }
 
-        private static GenomeRecord BestArchived(Population population)
+        public static GenomeRecord BestArchived(Population population)
         {
             return population.lsBestGenes?
                 .Where(record => record != null && record.Gene != null)
@@ -509,39 +516,4 @@ namespace AI_Evlo_Test.Objects
                 .FirstOrDefault();
         }
     }
-
-    //public class ViewModelPopulation : INotifyPropertyChanged
-    //{
-    //    private readonly CollectionView _populations;
-    //    private Population _selectedPopulation;
-
-    //    public ViewModelPopulation(IList<Population> listPoplations)
-    //    {
-    //        listPoplations.Add(new Population() { Name= "<New Population>"});
-    //        _populations = new CollectionView(listPoplations);
-    //    }
-
-    //    public CollectionView PhonebookEntries
-    //    {
-    //        get { return _populations; }
-    //    }
-
-    //    public Population SelectedPopulation
-    //    {
-    //        get { return _selectedPopulation; }
-    //        set
-    //        {
-    //            if (_selectedPopulation == value) return;
-    //            _selectedPopulation = value;
-    //            OnPropertyChanged("PopulationEntry");
-    //        }
-    //    }
-
-    //    private void OnPropertyChanged(string propertyName)
-    //    {
-    //        if (PropertyChanged != null)
-    //            PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
-    //    }
-    //    public event PropertyChangedEventHandler PropertyChanged;
-    //}
 }

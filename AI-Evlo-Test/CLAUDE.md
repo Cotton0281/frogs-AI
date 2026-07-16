@@ -104,7 +104,10 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` â
 | `MainWindow.Simulation.cs` | Per-tick loop: movement, perception snapshot, environment effects |
 | `MainWindow.AgentFactory.cs` | Agent/shape creation, offspring, disposal, population re-growth |
 | `PopulationList.cs` | Population statistics viewer (WinForms DataGrid) |
-| `VisualizeNetwork.cs` | Neural-network topology visualization (WinForms) |
+| `VisualizeNetwork.xaml(.cs)` | Population neural-network designer (WPF): special-agent selection, population-wide layer locks, residual growth |
+| `NeuralNetworkView.cs` | Immediate-mode WPF renderer for dense layered networks, including pan/zoom, weight filtering, and lock controls |
+| `MainWindow.NetworkDesigner.cs` | Thread-safe workspace adapter between the designer and live populations |
+| `Objects/PopulationNeuralNetworkEvolution.cs` | Atomic population-wide residual growth and survival-milestone auto-growth policy |
 | `PopulationDashboard.cs` | Per-population dashboard (WinForms): live charts, golden-agent stats, initial-vs-current brain diff; header dropdown switches the active population live |
 | `MainWindow.Dashboard.cs` | Dashboard host: context-menu entry, ref-counted attach/detach of the stats collector, population-list + by-id snapshot providers (all under `simLock`) |
 | `Controls/DashboardChart.cs` | ScottPlot-backed line/bar chart wrapper (`SetLine`/`SetBars`) used by the dashboard |

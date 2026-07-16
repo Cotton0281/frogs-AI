@@ -60,6 +60,8 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="img\Help-icon.png" />
+    <Resource Include="img\nn-layer-locked.png" />
+    <Resource Include="img\nn-layer-unlocked.png" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="img\bird_sprite_sheet_1024_256px_frames.png" />

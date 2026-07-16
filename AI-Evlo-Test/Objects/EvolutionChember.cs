@@ -37,11 +37,20 @@ namespace AI_Evlo_Test.Objects
         /// <returns></returns>
         public INeuralNetwork MutateNN(INeuralNetwork MutatingNeuroNet, double MutationRate, bool MutRateInPercent = true)
         {
+            return MutateNN(MutatingNeuroNet, MutationRate, MutRateInPercent, null);
+        }
+
+        public INeuralNetwork MutateNN(
+            INeuralNetwork MutatingNeuroNet,
+            double MutationRate,
+            bool MutRateInPercent,
+            IReadOnlyList<bool> lockedDestinationLayers)
+        {
             //soma is input, Axon is output
             if (MutatingNeuroNet != null)
             {
                 var originalGenes = MutatingNeuroNet.GetGenes();
-                var mutGenes = MutateGenom(originalGenes, MutationRate, MutRateInPercent);
+                var mutGenes = MutateGenom(originalGenes, MutationRate, MutRateInPercent, lockedDestinationLayers);
 
                 var nnFak = NeuralNetworkFactory.GetInstance();
                 MutatingNeuroNet = nnFak.Create(mutGenes);
@@ -51,7 +60,19 @@ namespace AI_Evlo_Test.Objects
 
         public NeuralNetworkGene MutateGenom(NeuralNetworkGene originalGenes, double Mutations, bool MutRateInPercent = true)
         {
-            List<NeuronsIndex> lsIndex = IndexGene(originalGenes);
+            return MutateGenom(originalGenes, Mutations, MutRateInPercent, null);
+        }
+
+        public NeuralNetworkGene MutateGenom(
+            NeuralNetworkGene originalGenes,
+            double Mutations,
+            bool MutRateInPercent,
+            IReadOnlyList<bool> lockedDestinationLayers)
+        {
+            List<NeuronsIndex> allIndices = IndexGene(originalGenes);
+            List<NeuronsIndex> lsIndex = allIndices
+                .Where(index => !IsDestinationLocked(index.DestinationLayerIndex, lockedDestinationLayers))
+                .ToList();
             int numMutations;
 
             if (MutRateInPercent)
@@ -62,7 +83,7 @@ namespace AI_Evlo_Test.Objects
                     Mutations = 0;
 
 
-                int ValuesCount = lsIndex.Count;
+                int ValuesCount = allIndices.Count;
                 numMutations = (int)((Mutations * ValuesCount) / 100);  // percent of neurons to mutate
             }
 
@@ -120,6 +141,14 @@ namespace AI_Evlo_Test.Objects
             return originalGenes;
         }
 
+        private static bool IsDestinationLocked(int destinationLayerIndex, IReadOnlyList<bool> lockedDestinationLayers)
+        {
+            return lockedDestinationLayers != null
+                && destinationLayerIndex >= 0
+                && destinationLayerIndex < lockedDestinationLayers.Count
+                && lockedDestinationLayers[destinationLayerIndex];
+        }
+
         private int NextRandom(int minValue, int maxValue)
         {
             lock (rndLock)
@@ -146,7 +175,7 @@ namespace AI_Evlo_Test.Objects
             {
                 for (int iw = 0; iw < originalGenes.InputGene.Neurons[i].Axon.Weights.Count; iw++)
                 {
-                    NeuronsIndex WIndex = new NeuronsIndex(ELeyerType.Input, 0, i, iw, EValueType.Weigth);
+                    NeuronsIndex WIndex = new NeuronsIndex(ELeyerType.Input, 0, i, iw, EValueType.Weigth, 0);
                     lsIndex.Add(WIndex);
                 }
             }
@@ -157,11 +186,11 @@ namespace AI_Evlo_Test.Objects
                 LayerGene gLayer = originalGenes.HiddenGenes[iL];
                 for (int idxNeur = 0; idxNeur < gLayer.Neurons.Count; idxNeur++)
                 {
-                    NeuronsIndex biosIndex = new NeuronsIndex(ELeyerType.Hidden, iL, idxNeur, -1, EValueType.Bios);
+                    NeuronsIndex biosIndex = new NeuronsIndex(ELeyerType.Hidden, iL, idxNeur, -1, EValueType.Bios, iL);
                     lsIndex.Add(biosIndex);
                     for (int i = 0; i < gLayer.Neurons[idxNeur].Axon.Weights.Count; i++)
                     {
-                        NeuronsIndex WIndex = new NeuronsIndex(ELeyerType.Hidden, iL, idxNeur, i, EValueType.Weigth);
+                        NeuronsIndex WIndex = new NeuronsIndex(ELeyerType.Hidden, iL, idxNeur, i, EValueType.Weigth, iL + 1);
                         lsIndex.Add(WIndex);
                     }
                 }
@@ -170,7 +199,13 @@ namespace AI_Evlo_Test.Objects
             //Index Ouput Layer
             for (int iO = 0; iO < originalGenes.OutputGene.Neurons.Count; iO++)
             {
-                NeuronsIndex biosIndex = new NeuronsIndex(ELeyerType.Output, 0, iO, -1, EValueType.Bios);
+                NeuronsIndex biosIndex = new NeuronsIndex(
+                    ELeyerType.Output,
+                    0,
+                    iO,
+                    -1,
+                    EValueType.Bios,
+                    originalGenes.HiddenGenes.Count);
                 lsIndex.Add(biosIndex);
             }
 
@@ -195,13 +230,21 @@ namespace AI_Evlo_Test.Objects
         public int NeuronIndex;
         public int WeigthIndex;
         public EValueType ValueType;
-        public NeuronsIndex(ELeyerType eLayerType, int LayerIndex, int NeuronIndex, int WeigthIndex, EValueType ValueType)
+        public int DestinationLayerIndex;
+        public NeuronsIndex(
+            ELeyerType eLayerType,
+            int LayerIndex,
+            int NeuronIndex,
+            int WeigthIndex,
+            EValueType ValueType,
+            int destinationLayerIndex = -1)
         {
             LayerType = eLayerType;
             this.LayerIndex = LayerIndex;
             this.NeuronIndex = NeuronIndex;
             this.WeigthIndex = WeigthIndex;
             this.ValueType = ValueType;
+            DestinationLayerIndex = destinationLayerIndex;
         }
         public override string ToString()
         {

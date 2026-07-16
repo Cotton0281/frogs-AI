@@ -1,6 +1,9 @@
 using AI_Evlo_Test;
+using AI_Evlo_Test.ConfigLib;
 using AI_Evlo_Test.Objects;
 using AI_Evlo_Test.Persistence;
+using ArtificialNeuralNetwork.Factories;
+using ArtificialNeuralNetwork.Genes;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -66,6 +69,47 @@ namespace AI_Evlo_WPF.UnitTests.Persistence
                 List<Population> loaded = new SessionStore(directory).LoadLegacyFiles();
 
                 Assert.AreEqual("legacy", loaded.Single().Name);
+            }
+            finally
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
+        [TestMethod]
+        public void SaveAndLoad_PreservesCustomResidualTopologyLocksAndAutoGrowState()
+        {
+            string directory = CreateDirectory();
+            try
+            {
+                var factory = NeuralNetworkFactory.GetInstance();
+                NeuralNetworkGene gene = PopulationNeuralNetworkEvolution.AddResidualLayer(
+                    factory.Create(2, 1, 1, 2).GetGenes());
+                var population = new Population
+                {
+                    Name = "grown",
+                    SizeLimit = 2,
+                    NeuroNetTemplate = NeuroNetStructure.FromGene(gene),
+                    LayerLocks = new List<bool> { true, false, true },
+                    AutoGrowNeuralNetwork = true,
+                    SurvivalRecordCycles = 250,
+                    NextAutoGrowSurvivalCycles = 400,
+                    lsBestGenes = new List<GenomeRecord>
+                    {
+                        new GenomeRecord { ID = "best", Gene = gene, Fitness = 12 }
+                    }
+                };
+                var store = new SessionStore(directory);
+
+                store.Save(new[] { population });
+                Population loaded = store.Load().Single();
+
+                Assert.IsTrue(loaded.AutoGrowNeuralNetwork);
+                Assert.AreEqual(250, loaded.SurvivalRecordCycles);
+                Assert.AreEqual(400, loaded.NextAutoGrowSurvivalCycles);
+                CollectionAssert.AreEqual(new[] { true, false, true }, loaded.LayerLocks);
+                Assert.AreEqual(NeuralLayerKind.Residual, loaded.NeuroNetTemplate.LayerDefinitions[1].Kind);
+                Assert.AreEqual(NeuralLayerKind.Residual, loaded.lsBestGenes[0].Gene.HiddenGenes[1].Kind);
             }
             finally
             {

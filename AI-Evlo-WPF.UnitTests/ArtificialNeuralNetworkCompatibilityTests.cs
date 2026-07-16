@@ -66,6 +66,95 @@ namespace AI_Evlo_WPF.UnitTests
             Assert.IsLessThan(-0.1, secondOutput);
         }
 
+        [TestMethod]
+        public void ResidualLayer_WithZeroBranch_PreservesTheNetworkFunction()
+        {
+            var factory = NeuralNetworkFactory.GetInstance();
+            NeuralNetworkGene originalGene = CreateTwoLayerGene(includeResidualLayer: false);
+            NeuralNetworkGene grownGene = CreateTwoLayerGene(includeResidualLayer: true);
+            INeuralNetwork original = factory.Create(originalGene);
+            INeuralNetwork grown = factory.Create(grownGene);
+
+            foreach (double[] inputs in new[]
+            {
+                new[] { 0.25, -0.5 },
+                new[] { -0.9, 0.7 },
+                new[] { 0.0, 0.0 }
+            })
+            {
+                original.SetInputs(inputs);
+                original.Process();
+                grown.SetInputs(inputs);
+                grown.Process();
+
+                Assert.AreEqual(original.GetOutputs()[0], grown.GetOutputs()[0], 1e-12);
+            }
+
+            Assert.AreEqual(NeuralLayerKind.Residual, grown.GetGenes().HiddenGenes[1].Kind);
+        }
+
+        [TestMethod]
+        public void Factory_WithResidualLayerDefinition_ZeroInitializesTheResidualBranch()
+        {
+            INeuralNetworkFactory factory = NeuralNetworkFactory.GetInstance();
+
+            INeuralNetwork network = factory.Create(
+                2,
+                1,
+                new[] { 3, 3 },
+                new[] { NeuralLayerKind.Dense, NeuralLayerKind.Residual });
+
+            NeuralNetworkGene gene = network.GetGenes();
+            Assert.AreEqual(NeuralLayerKind.Residual, gene.HiddenGenes[1].Kind);
+            Assert.IsTrue(gene.HiddenGenes[0].Neurons
+                .SelectMany(neuron => neuron.Axon.Weights)
+                .All(weight => weight == 0));
+            Assert.IsTrue(gene.HiddenGenes[1].Neurons.All(neuron => neuron.Soma.Bias == 0));
+        }
+
+        private static NeuralNetworkGene CreateTwoLayerGene(bool includeResidualLayer)
+        {
+            var firstHidden = new LayerGene
+            {
+                Neurons = new List<NeuronGene>
+                {
+                    CreateNeuronGene(0.1, includeResidualLayer ? new[] { 0.0, 0.0 } : new[] { 0.7 }),
+                    CreateNeuronGene(-0.2, includeResidualLayer ? new[] { 0.0, 0.0 } : new[] { -0.2 })
+                }
+            };
+
+            var hiddenLayers = new List<LayerGene> { firstHidden };
+            if (includeResidualLayer)
+            {
+                hiddenLayers.Add(new LayerGene
+                {
+                    Kind = NeuralLayerKind.Residual,
+                    Neurons = new List<NeuronGene>
+                    {
+                        CreateNeuronGene(0, 0.7),
+                        CreateNeuronGene(0, -0.2)
+                    }
+                });
+            }
+
+            return new NeuralNetworkGene
+            {
+                InputGene = new LayerGene
+                {
+                    Neurons = new List<NeuronGene>
+                    {
+                        CreateNeuronGene(0, 0.4, -0.1),
+                        CreateNeuronGene(0, -0.3, 0.8)
+                    }
+                },
+                HiddenGenes = hiddenLayers,
+                OutputGene = new LayerGene
+                {
+                    Neurons = new List<NeuronGene> { CreateNeuronGene(0.05) }
+                }
+            };
+        }
+
         private static NeuronGene CreateNeuronGene(double bias, params double[] weights)
         {
             return new NeuronGene

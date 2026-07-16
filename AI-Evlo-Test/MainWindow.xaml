@@ -64,8 +64,6 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
                 <!-- Action buttons -->
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                     <Button x:Name="btnDeleteObject" Content="Delete" Width="43" Click="BtnDeleteObject_Click" ToolTip="Delete selected agent" Padding="1" Height="20" Margin="0,0,5,0"/>
-                    <Button x:Name="btnMutateSelected" Content="Mutate NN" Click="btnMutate_Click_1" ToolTip="Mutate neural network of the selected object" HorizontalContentAlignment="Center" Width="68" Height="20" Margin="0,0,5,0"/>
-                    <Button x:Name="btnVisualNet" Content="Show Net" Click="BtnVisualNet_Click_1" Width="61" ToolTip="Show map of the neural network" Height="20" Margin="0,0,5,0"/>
                     <Button x:Name="btnStopTargets" Content="Anchor rafts" Width="80" Click="Button_Click" Height="20"  Margin="0,0,5,0" ToolTip="Anchor or release the rafts"/>
                 </StackPanel>
             </StackPanel>
@@ -120,6 +118,7 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
                     <ListBoxItem Content="Small" IsSelected="True"/>
                     <ListBoxItem Content="Medium"/>
                     <ListBoxItem Content="Large"/>
+                    <ListBoxItem x:Name="itemCustomBrain" Content="Custom" Visibility="Collapsed"/>
                 </ComboBox>
                 <Label x:Name="lblPopulationBeing" Grid.Row="1" Grid.Column="2" Content="Being" VerticalAlignment="Center" Padding="3,0,3,0"/>
                 <ComboBox x:Name="ddlPopulationBeing" Grid.Row="1" Grid.Column="3" Margin="0,4,2,4"
@@ -147,9 +146,13 @@ Title="Evlolutionary Neuro Nets" Height="627" Width="1201.6" MinWidth="900" MinH
                               Checked="ChkPopulationSpawnDelay_Changed" Unchecked="ChkPopulationSpawnDelay_Changed"
                               ToolTip="When enabled, this population uses delayed respawn. When disabled, it respawns one agent every tick while below its size limit."/>
                     <CheckBox x:Name="chkPopulationPauseMutation"
-                              Content="Pause Mutation" VerticalAlignment="Center"
+                              Content="Pause Mutation" Margin="0,0,12,0" VerticalAlignment="Center"
                               Checked="ChkPopulationPauseMutation_Changed" Unchecked="ChkPopulationPauseMutation_Changed"
                               ToolTip="When enabled, copied regrowth brains are not mutated for this population."/>
+                    <CheckBox x:Name="chkPopulationAutoGrow"
+                              Content="Auto grow NN" VerticalAlignment="Center"
+                              Checked="ChkPopulationAutoGrow_Changed" Unchecked="ChkPopulationAutoGrow_Changed"
+                              ToolTip="Grow and protect this population's neural network when its survival record reaches the next doubling milestone."/>
                 </StackPanel>
             </Grid>
         </GroupBox>

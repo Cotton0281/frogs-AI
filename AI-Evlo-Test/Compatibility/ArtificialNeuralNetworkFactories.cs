@@ -35,6 +35,11 @@ namespace ArtificialNeuralNetwork.Factories
     {
         INeuralNetwork Create(int inputs, int outputs, int hiddenLayers, int neuronsInHiddenLayer);
         INeuralNetwork Create(int inputs, int outputs, IList<int> hiddenLayerSizes);
+        INeuralNetwork Create(
+            int inputs,
+            int outputs,
+            IList<int> hiddenLayerSizes,
+            IList<NeuralLayerKind> hiddenLayerKinds);
         INeuralNetwork Create(NeuralNetworkGene gene);
     }
 
@@ -236,7 +241,26 @@ namespace ArtificialNeuralNetwork.Factories
 
         public INeuralNetwork Create(int inputs, int outputs, IList<int> hiddenLayerSizes)
         {
-            var gene = CreateGene(inputs, outputs, hiddenLayerSizes ?? new List<int>());
+            IList<int> sizes = hiddenLayerSizes ?? new List<int>();
+            return Create(
+                inputs,
+                outputs,
+                sizes,
+                Enumerable.Repeat(NeuralLayerKind.Dense, sizes.Count).ToList());
+        }
+
+        public INeuralNetwork Create(
+            int inputs,
+            int outputs,
+            IList<int> hiddenLayerSizes,
+            IList<NeuralLayerKind> hiddenLayerKinds)
+        {
+            IList<int> sizes = hiddenLayerSizes ?? new List<int>();
+            IList<NeuralLayerKind> kinds = hiddenLayerKinds ?? new List<NeuralLayerKind>();
+            if (sizes.Count != kinds.Count)
+                throw new ArgumentException("Hidden layer sizes and kinds must have the same count.");
+
+            var gene = CreateGene(inputs, outputs, sizes, kinds);
             return Create(gene);
         }
 
@@ -248,7 +272,11 @@ namespace ArtificialNeuralNetwork.Factories
             return BuildNetwork(gene);
         }
 
-        private NeuralNetworkGene CreateGene(int inputs, int outputs, IList<int> hiddenLayerSizes)
+        private NeuralNetworkGene CreateGene(
+            int inputs,
+            int outputs,
+            IList<int> hiddenLayerSizes,
+            IList<NeuralLayerKind> hiddenLayerKinds)
         {
             var gene = new NeuralNetworkGene
             {
@@ -258,32 +286,43 @@ namespace ArtificialNeuralNetwork.Factories
             };
 
             int nextLayerSize = hiddenLayerSizes.Count > 0 ? hiddenLayerSizes[0] : outputs;
+            bool nextLayerIsResidual = hiddenLayerKinds.Count > 0 && hiddenLayerKinds[0] == NeuralLayerKind.Residual;
             for (int i = 0; i < inputs; i++)
-                gene.InputGene.Neurons.Add(CreateNeuronGene(nextLayerSize, true));
+                gene.InputGene.Neurons.Add(CreateNeuronGene(nextLayerSize, true, nextLayerIsResidual, false));
 
             for (int layerIndex = 0; layerIndex < hiddenLayerSizes.Count; layerIndex++)
             {
                 int layerSize = hiddenLayerSizes[layerIndex];
                 nextLayerSize = layerIndex + 1 < hiddenLayerSizes.Count ? hiddenLayerSizes[layerIndex + 1] : outputs;
-                var layer = new LayerGene();
+                nextLayerIsResidual = layerIndex + 1 < hiddenLayerKinds.Count
+                    && hiddenLayerKinds[layerIndex + 1] == NeuralLayerKind.Residual;
+                var layer = new LayerGene { Kind = hiddenLayerKinds[layerIndex] };
                 for (int neuronIndex = 0; neuronIndex < layerSize; neuronIndex++)
-                    layer.Neurons.Add(CreateNeuronGene(nextLayerSize, false));
+                    layer.Neurons.Add(CreateNeuronGene(
+                        nextLayerSize,
+                        false,
+                        nextLayerIsResidual,
+                        layer.Kind == NeuralLayerKind.Residual));
                 gene.HiddenGenes.Add(layer);
             }
 
             for (int i = 0; i < outputs; i++)
-                gene.OutputGene.Neurons.Add(CreateNeuronGene(0, false));
+                gene.OutputGene.Neurons.Add(CreateNeuronGene(0, false, false, false));
 
             return gene;
         }
 
-        private NeuronGene CreateNeuronGene(int outgoingWeights, bool inputLayer)
+        private NeuronGene CreateNeuronGene(
+            int outgoingWeights,
+            bool inputLayer,
+            bool zeroOutgoingWeights,
+            bool zeroBias)
         {
             var gene = new NeuronGene
             {
                 Soma = new SomaGene
                 {
-                    Bias = inputLayer ? 0 : weightInitializer.InitializeWeight(),
+                    Bias = inputLayer || zeroBias ? 0 : weightInitializer.InitializeWeight(),
                     SummationFunction = typeof(SimpleSummation)
                 },
                 Axon = new AxonGene
@@ -294,18 +333,18 @@ namespace ArtificialNeuralNetwork.Factories
             };
 
             for (int i = 0; i < outgoingWeights; i++)
-                gene.Axon.Weights.Add(weightInitializer.InitializeWeight());
+                gene.Axon.Weights.Add(zeroOutgoingWeights ? 0 : weightInitializer.InitializeWeight());
 
             return gene;
         }
 
         private NeuralNetwork BuildNetwork(NeuralNetworkGene gene)
         {
-            Layer inputLayer = BuildLayer(gene.InputGene);
+            ILayer inputLayer = BuildLayer(gene.InputGene);
             var hiddenLayers = new List<ILayer>();
             foreach (LayerGene hiddenGene in gene.HiddenGenes)
                 hiddenLayers.Add(BuildLayer(hiddenGene));
-            Layer outputLayer = BuildLayer(gene.OutputGene);
+            ILayer outputLayer = BuildLayer(gene.OutputGene);
 
             var allLayers = new List<ILayer> { inputLayer };
             allLayers.AddRange(hiddenLayers);
@@ -313,6 +352,17 @@ namespace ArtificialNeuralNetwork.Factories
 
             for (int layerIndex = 0; layerIndex < allLayers.Count - 1; layerIndex++)
                 ConnectLayers(allLayers[layerIndex], allLayers[layerIndex + 1]);
+
+            for (int layerIndex = 1; layerIndex < allLayers.Count - 1; layerIndex++)
+            {
+                if (allLayers[layerIndex] is ResidualLayer residual)
+                {
+                    if (allLayers[layerIndex - 1].NeuronsInLayer.Count != residual.NeuronsInLayer.Count)
+                        throw new ArgumentException("A residual hidden layer must match the preceding layer width.", nameof(gene));
+
+                    residual.SkipLayer = allLayers[layerIndex - 1];
+                }
+            }
 
             return new NeuralNetwork
             {
@@ -324,9 +374,11 @@ namespace ArtificialNeuralNetwork.Factories
             };
         }
 
-        private Layer BuildLayer(LayerGene layerGene)
+        private ILayer BuildLayer(LayerGene layerGene)
         {
-            var layer = new Layer();
+            ILayer layer = layerGene.Kind == NeuralLayerKind.Residual
+                ? new ResidualLayer()
+                : new Layer();
             foreach (NeuronGene neuronGene in layerGene.Neurons)
             {
                 var soma = new Soma

@@ -11,13 +11,7 @@ namespace AI_Evlo_Test.Objects
             if (member?.NNetwork == null)
                 return;
 
-            int capacity = Math.Max(0, population.SizeLimit / 2);
-            if (capacity == 0)
-            {
-                population.lsBestGenes.Clear();
-                return;
-            }
-
+            int capacity = Math.Max(1, population.SizeLimit / 2);
             TrimToCapacity(population, capacity);
 
             double worstFitness = population.lsBestGenes.Count > 0

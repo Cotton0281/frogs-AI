@@ -41,6 +41,7 @@ namespace ArtificialNeuralNetwork
         IActivationFunction ActivationFunction { get; set; }
         double Value { get; }
         void ProcessSignal(double signal);
+        void SetValue(double value);
         AxonGene GetGenes();
     }
 
@@ -89,6 +90,11 @@ namespace ArtificialNeuralNetwork
         public void ProcessSignal(double signal)
         {
             Value = ActivationFunction?.CalculateActivation(signal) ?? signal;
+        }
+
+        public void SetValue(double value)
+        {
+            Value = value;
         }
 
         public AxonGene GetGenes()
@@ -158,6 +164,41 @@ namespace ArtificialNeuralNetwork
         {
             return new LayerGene
             {
+                Kind = NeuralLayerKind.Dense,
+                Neurons = NeuronsInLayer.Select(n => n.GetGenes()).ToList()
+            };
+        }
+    }
+
+    /// <summary>
+    /// A same-width residual layer. Its neurons evaluate the learned branch while the matching
+    /// neuron in <see cref="SkipLayer"/> is added unchanged. With zero branch weights and biases,
+    /// the layer is therefore an exact identity transform.
+    /// </summary>
+    public class ResidualLayer : ILayer
+    {
+        public IList<INeuron> NeuronsInLayer { get; set; } = new List<INeuron>();
+        public ILayer SkipLayer { get; set; }
+
+        public void Process()
+        {
+            if (SkipLayer?.NeuronsInLayer == null || SkipLayer.NeuronsInLayer.Count != NeuronsInLayer.Count)
+                throw new InvalidOperationException("A residual layer must have the same width as its skip source.");
+
+            for (int i = 0; i < NeuronsInLayer.Count; i++)
+            {
+                INeuron neuron = NeuronsInLayer[i];
+                double branchInput = neuron.Soma.CalculateSummation();
+                double branchValue = neuron.Axon.ActivationFunction?.CalculateActivation(branchInput) ?? branchInput;
+                neuron.Axon.SetValue(SkipLayer.NeuronsInLayer[i].Axon.Value + branchValue);
+            }
+        }
+
+        public LayerGene GetGenes()
+        {
+            return new LayerGene
+            {
+                Kind = NeuralLayerKind.Residual,
                 Neurons = NeuronsInLayer.Select(n => n.GetGenes()).ToList()
             };
         }
@@ -337,6 +378,12 @@ namespace ArtificialNeuralNetwork.WeightInitializer
 
 namespace ArtificialNeuralNetwork.Genes
 {
+    public enum NeuralLayerKind
+    {
+        Dense = 0,
+        Residual = 1
+    }
+
     public class NeuralNetworkGene
     {
         public LayerGene InputGene { get; set; } = new LayerGene();
@@ -346,6 +393,7 @@ namespace ArtificialNeuralNetwork.Genes
 
     public class LayerGene
     {
+        public NeuralLayerKind Kind { get; set; } = NeuralLayerKind.Dense;
         public IList<NeuronGene> Neurons { get; set; } = new List<NeuronGene>();
     }
 

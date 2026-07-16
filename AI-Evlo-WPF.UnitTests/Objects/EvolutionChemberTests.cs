@@ -47,6 +47,40 @@ namespace AI_Evlo_WPF.UnitTests.Objects
         }
 
         [TestMethod]
+        public void MutateGenom_WithLayerLocks_MutatesOnlyParametersOwnedByUnlockedDestinationLayers()
+        {
+            NeuralNetworkGene genes = CreateLayerOwnershipGene();
+
+            new EvolutionChember(17).MutateGenom(
+                genes,
+                100,
+                true,
+                new[] { true, false, true });
+
+            Assert.AreEqual(0.1, genes.InputGene.Neurons[0].Axon.Weights[0], 1e-12, "H1 incoming weight is locked.");
+            Assert.AreEqual(0.2, genes.HiddenGenes[0].Neurons[0].Soma.Bias, 1e-12, "H1 bias is locked.");
+            Assert.AreNotEqual(0.3, genes.HiddenGenes[0].Neurons[0].Axon.Weights[0], "H2 incoming weight is unlocked.");
+            Assert.AreNotEqual(0.4, genes.HiddenGenes[1].Neurons[0].Soma.Bias, "H2 bias is unlocked.");
+            Assert.AreEqual(0.5, genes.HiddenGenes[1].Neurons[0].Axon.Weights[0], 1e-12, "Output incoming weight is locked.");
+            Assert.AreEqual(0.6, genes.OutputGene.Neurons[0].Soma.Bias, 1e-12, "Output bias is locked.");
+        }
+
+        [TestMethod]
+        public void MutateGenom_WhenAllDestinationLayersAreLocked_LeavesGeneUnchanged()
+        {
+            NeuralNetworkGene genes = CreateLayerOwnershipGene();
+            double[] before = FlattenGeneValues(genes).ToArray();
+
+            new EvolutionChember(17).MutateGenom(
+                genes,
+                10,
+                false,
+                new[] { true, true, true });
+
+            CollectionAssert.AreEqual(before, FlattenGeneValues(genes).ToArray());
+        }
+
+        [TestMethod]
         public void MutateNN_NullNetwork_ReturnsNull()
         {
             // Arrange
@@ -524,6 +558,44 @@ namespace AI_Evlo_WPF.UnitTests.Objects
             }
 
             return genes;
+        }
+
+        private static NeuralNetworkGene CreateLayerOwnershipGene()
+        {
+            return new NeuralNetworkGene
+            {
+                InputGene = new LayerGene
+                {
+                    Neurons = new List<NeuronGene>
+                    {
+                        new NeuronGene { Soma = new SomaGene(), Axon = new AxonGene { Weights = new List<double> { 0.1 } } }
+                    }
+                },
+                HiddenGenes = new List<LayerGene>
+                {
+                    new LayerGene
+                    {
+                        Neurons = new List<NeuronGene>
+                        {
+                            new NeuronGene { Soma = new SomaGene { Bias = 0.2 }, Axon = new AxonGene { Weights = new List<double> { 0.3 } } }
+                        }
+                    },
+                    new LayerGene
+                    {
+                        Neurons = new List<NeuronGene>
+                        {
+                            new NeuronGene { Soma = new SomaGene { Bias = 0.4 }, Axon = new AxonGene { Weights = new List<double> { 0.5 } } }
+                        }
+                    }
+                },
+                OutputGene = new LayerGene
+                {
+                    Neurons = new List<NeuronGene>
+                    {
+                        new NeuronGene { Soma = new SomaGene { Bias = 0.6 }, Axon = new AxonGene() }
+                    }
+                }
+            };
         }
 
         private NeuralNetworkGene CreateTestGenesWithMultipleHiddenLayers()

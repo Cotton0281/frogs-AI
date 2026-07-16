@@ -73,13 +73,13 @@ namespace AI_Evlo_Test
             newPopulation.SizeLimit = PopulationSize;
             newPopulation.Being = being;
 
-            // Set NNet Size based on the captured NN type
-            if (nnType == "Small")
-                newPopulation.NeuroNetTemplate = NeuroNetStructure.Small_1Lx9N();
-            else if (nnType == "Medium")
-                newPopulation.NeuroNetTemplate = NeuroNetStructure.Mid_3Lx10N();
-            else if (nnType == "Large")
-                newPopulation.NeuroNetTemplate = NeuroNetStructure.Big_5Lx20N();
+            // The editor can display a population's custom grown topology. That label is not a
+            // creation preset, so new populations fall back to Small instead of leaving the
+            // template null.
+            newPopulation.NeuroNetTemplate = ResolvePopulationTemplateForCreation(nnType);
+            newPopulation.LayerLocks = PopulationNeuralNetworkEvolution.NormalizeLocks(
+                null,
+                newPopulation.NeuroNetTemplate.HiddenLayers + 1);
 
             // give a collor
             switch (lsPopulations.Count)
@@ -106,6 +106,16 @@ namespace AI_Evlo_Test
             return newPopulation;
         }
 
+        internal static NeuroNetStructure ResolvePopulationTemplateForCreation(string nnType)
+        {
+            return nnType switch
+            {
+                "Medium" => NeuroNetStructure.Mid_3Lx10N(),
+                "Large" => NeuroNetStructure.Big_5Lx20N(),
+                _ => NeuroNetStructure.Small_1Lx9N()
+            };
+        }
+
         private void ReGrowPopulation(Population objPopulation)
         {
             TryRegrowPopulation(objPopulation, CycleCount);
@@ -123,7 +133,6 @@ namespace AI_Evlo_Test
             {
                 RegrowthBrainSource immediateSource = PopulationRegrowthPolicy.SelectSource(population);
                 ISmartObject immediateMember = CreateRegrowthMember(population, immediateSource);
-                ApplyImmediateSpawnLocation(immediateMember, population);
                 AddPopulationMember(population, immediateMember);
                 PopulationRegrowthPolicy.MarkSpawned(population, currentCycle);
                 return true;
@@ -178,20 +187,12 @@ namespace AI_Evlo_Test
                     return CreateFromAliveParent(population, source.AliveParent, mutate: false);
                 case RegrowthBrainSourceKind.AliveBestMutated:
                     return CreateFromAliveParent(population, source.AliveParent, mutate: true);
-                case RegrowthBrainSourceKind.GoldenAgentMutated:
-                    return CreateFromAliveParent(population, source.AliveParent, mutate: true);
                 default:
-                    return CreatePopulationMember(population);
+                    GenomeRecord bestArchived = PopulationRegrowthPolicy.BestArchived(population);
+                    return bestArchived == null
+                        ? CreatePopulationMember(population)
+                        : CreateFromArchivedGene(population, bestArchived, mutate: false);
             }
-        }
-
-        private static void ApplyImmediateSpawnLocation(ISmartObject newObj, Population population)
-        {
-            ISmartObject locationSource = PopulationRegrowthPolicy.LongestLivedMember(population);
-            if (newObj == null || locationSource == null)
-                return;
-
-            newObj.SetLocation(locationSource.Location.X, locationSource.Location.Y);
         }
 
         private ISmartObject CreateFromArchivedGene(Population population, GenomeRecord parent, bool mutate)
@@ -205,7 +206,11 @@ namespace AI_Evlo_Test
             NeuralNetworkFactory nNetworkFactory = NeuralNetworkFactory.GetInstance();
             INeuralNetwork network = nNetworkFactory.Create(Utils.CloneGene(parent.Gene));
             if (PopulationRegrowthPolicy.ShouldMutate(population, mutate))
-                network = evoChember.MutateNN(network, 1, false);
+                network = evoChember.MutateNN(
+                    network,
+                    population.MutationRate,
+                    false,
+                    population.LayerLocks);
 
             ISmartObject newObj = CreatePopulationMember(population);
             newObj.NNetwork = network;
@@ -232,10 +237,15 @@ namespace AI_Evlo_Test
 
             INeuralNetwork network = Utils.CloneNeuroNet(parent.NNetwork);
             if (PopulationRegrowthPolicy.ShouldMutate(population, mutate))
-                network = evoChember.MutateNN(network, 1, false);
+                network = evoChember.MutateNN(
+                    network,
+                    population.MutationRate,
+                    false,
+                    population.LayerLocks);
 
             ISmartObject newObj = CreatePopulationMember(population);
             newObj.NNetwork = network;
+            newObj.HP = parent.HP;
             newObj.SetLocation(
                 spawnAtParentLocation ? parent.Location.X : parent.Location.X + 1,
                 spawnAtParentLocation ? parent.Location.Y : parent.Location.Y + 1);
@@ -249,6 +259,11 @@ namespace AI_Evlo_Test
 
         private void AddPopulationMember(Population population, ISmartObject newObj)
         {
+            Point visibleLocation = AgentWorldBoundaryPolicy.NormalizeSpawnLocation(
+                newObj.Location,
+                canvasWidth,
+                canvasHeight);
+            newObj.SetLocation(visibleLocation);
             lsObjects.Add(newObj);
             population.Add(newObj);
             if (string.IsNullOrEmpty(newObj.ID) || newObj.ID == "0")
@@ -377,13 +392,25 @@ namespace AI_Evlo_Test
             return newObj;
         }
 
-        /// <summary>Random spawn position near the target, using the cached canvas size (no WPF reads).</summary>
+        /// <summary>Random parentless spawn near a randomly selected raft.</summary>
         private void SetInitialAgentLocation(ISmartObject newObj)
         {
-            double size = Target?.Size ?? dblTargetSize;
-            double initLocationX = (canvasWidth / 2) + NextRandom(0, (int)size) - (size / 2);
-            double initLocationY = (canvasHeight / 2) + NextRandom(0, (int)size) - (size / 2);
-            newObj.SetLocation(initLocationX, initLocationY);
+            if (newObj == null)
+                return;
+
+            if (Targets.Count == 0)
+            {
+                newObj.SetLocation(canvasWidth / 2, canvasHeight / 2);
+                return;
+            }
+
+            TargetObj raft = Targets[NextRandom(0, Targets.Count)];
+            double spawnRadius = Math.Max(raft.Size * 0.75, newObj.Size * 2);
+            double angle = NextRandomDouble() * Math.PI * 2;
+            double distance = Math.Sqrt(NextRandomDouble()) * spawnRadius;
+            newObj.SetLocation(
+                raft.Location.X + Math.Cos(angle) * distance,
+                raft.Location.Y + Math.Sin(angle) * distance);
         }
 
         private void DisposeObject(ISmartObject obj)
@@ -415,11 +442,6 @@ namespace AI_Evlo_Test
                     TryUpdateGoldenAverage(pop, obj);
 
                     PopulationArchive.Add(pop, obj);
-
-                        // Binary search insert to keep list sorted descending — avoids full re-sort
-
-                    //remove the worst of the best. This also will shrink lsBestGenes after population resizing.
-                    // List is kept sorted descending, so worst entries are at the end
                 }
 
                 //remove from lists
@@ -596,15 +618,21 @@ namespace AI_Evlo_Test
 
         private ISmartObject CreatePopulationMember(Population population)
         {
+            ISmartObject member;
             switch (population.Being)
             {
                 case PopulationBeing.Bird:
-                    return NewBird(population.NeuroNetTemplate, population.PopulationColorBrush);
+                    member = NewBird(population.NeuroNetTemplate, population.PopulationColorBrush);
+                    break;
                 case PopulationBeing.Shark:
-                    return NewShark(population.NeuroNetTemplate, population.PopulationColorBrush);
+                    member = NewShark(population.NeuroNetTemplate, population.PopulationColorBrush);
+                    break;
                 default:
-                    return NewFrog(population.NeuroNetTemplate, population.PopulationColorBrush);
+                    member = NewFrog(population.NeuroNetTemplate, population.PopulationColorBrush);
+                    break;
             }
+
+            return member;
         }
     }
 }

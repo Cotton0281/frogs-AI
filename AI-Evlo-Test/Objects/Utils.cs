@@ -110,7 +110,11 @@ namespace AI_Evlo_Test.Objects
 
             for (int i = 0; i < gene.HiddenGenes.Count; i++)
             {
-                if (gene.HiddenGenes[i]?.Neurons == null || gene.HiddenGenes[i].Neurons.Count != structure.NeuronsInHiddenLayer)
+                IReadOnlyList<NeuralLayerDefinition> definitions = structure.GetLayerDefinitions();
+                if (i >= definitions.Count
+                    || gene.HiddenGenes[i]?.Neurons == null
+                    || gene.HiddenGenes[i].Neurons.Count != definitions[i].NeuronCount
+                    || gene.HiddenGenes[i].Kind != definitions[i].Kind)
                     return false;
             }
 
@@ -139,7 +143,7 @@ namespace AI_Evlo_Test.Objects
         static public NeuralNetworkGene CloneGene(NeuralNetworkGene Gene)
         {
             NeuralNetworkGene newGene = new NeuralNetworkGene();
-            newGene.InputGene = new LayerGene()  ;
+            newGene.InputGene = new LayerGene { Kind = Gene.InputGene.Kind };
             newGene.InputGene.Neurons = new List<NeuronGene>();
 
             for (int in1 = 0; in1 < Gene.InputGene.Neurons.Count; in1++)
@@ -153,7 +157,7 @@ namespace AI_Evlo_Test.Objects
             newGene.HiddenGenes = new List<LayerGene>();
             for (int i = 0; i < numLayers; i++)
             {
-                LayerGene newLayer = new LayerGene();
+                LayerGene newLayer = new LayerGene { Kind = Gene.HiddenGenes[i].Kind };
                 newLayer.Neurons = new List<NeuronGene>();
 
                 newGene.HiddenGenes.Add(newLayer);
@@ -167,7 +171,7 @@ namespace AI_Evlo_Test.Objects
             }
 
             //Output layer
-            newGene.OutputGene = new LayerGene();
+            newGene.OutputGene = new LayerGene { Kind = Gene.OutputGene.Kind };
             newGene.OutputGene.Neurons = new List<NeuronGene>();
 
             for (int in1 = 0; in1 < Gene.OutputGene.Neurons.Count; in1++)
@@ -218,7 +222,10 @@ namespace AI_Evlo_Test.Objects
 
         private static bool HasSameLayerTopology(LayerGene layer1, LayerGene layer2)
         {
-            if (layer1?.Neurons == null || layer2?.Neurons == null || layer1.Neurons.Count != layer2.Neurons.Count)
+            if (layer1?.Neurons == null
+                || layer2?.Neurons == null
+                || layer1.Kind != layer2.Kind
+                || layer1.Neurons.Count != layer2.Neurons.Count)
                 return false;
 
             for (int i = 0; i < layer1.Neurons.Count; i++)

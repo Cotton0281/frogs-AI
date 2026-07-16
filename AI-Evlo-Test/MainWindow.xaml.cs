@@ -71,6 +71,8 @@ namespace AI_Evlo_Test
                     chkPopulationSpawnDelay.IsChecked = false;
                     chkPopulationPauseMutation.IsEnabled = false;
                     chkPopulationPauseMutation.IsChecked = false;
+                    chkPopulationAutoGrow.IsEnabled = false;
+                    chkPopulationAutoGrow.IsChecked = false;
                     return;
                 }
 
@@ -82,10 +84,15 @@ namespace AI_Evlo_Test
                 txtPopulationSize.Text = _selectedPopulation.SizeLimit.ToString();
 
                 string templateId = _selectedPopulation.NeuroNetTemplate?.Id;
-                ListBoxItem brainItem = ddlPopulationNeuroNetType.Items
-                    .OfType<ListBoxItem>()
-                    .FirstOrDefault(it => it.Content.ToString() == templateId)
-                    ?? ddlPopulationNeuroNetType.Items.OfType<ListBoxItem>().FirstOrDefault();
+                bool customBrain = templateId != "Small" && templateId != "Medium" && templateId != "Large";
+                itemCustomBrain.Visibility = customBrain ? Visibility.Visible : Visibility.Collapsed;
+                itemCustomBrain.Content = customBrain ? templateId ?? "Custom" : "Custom";
+                ListBoxItem brainItem = customBrain
+                    ? itemCustomBrain
+                    : ddlPopulationNeuroNetType.Items
+                        .OfType<ListBoxItem>()
+                        .FirstOrDefault(it => it.Content.ToString() == templateId)
+                        ?? ddlPopulationNeuroNetType.Items.OfType<ListBoxItem>().FirstOrDefault();
                 ddlPopulationNeuroNetType.SelectedItem = brainItem;
                 ddlPopulationNeuroNetType.UpdateLayout();
 
@@ -94,6 +101,11 @@ namespace AI_Evlo_Test
                 chkPopulationSpawnDelay.IsChecked = _selectedPopulation.SpawnDelay;
                 chkPopulationPauseMutation.IsEnabled = true;
                 chkPopulationPauseMutation.IsChecked = _selectedPopulation.PauseMutation;
+                chkPopulationAutoGrow.IsEnabled = true;
+                chkPopulationAutoGrow.IsChecked = _selectedPopulation.AutoGrowNeuralNetwork;
+                chkPopulationAutoGrow.ToolTip = _selectedPopulation.AutoGrowNeuralNetwork
+                    ? $"Next neural-network growth at survival {_selectedPopulation.NextAutoGrowSurvivalCycles:N0} cycles."
+                    : "Grow and protect this population's neural network when its survival record reaches the next doubling milestone.";
                 rectanglePopulationColor.Fill = new SolidColorBrush()
                 { Color = _selectedPopulation.PopulationColor };
                 groupBoxPopulation.BorderBrush = rectanglePopulationColor.Fill;
@@ -235,33 +247,6 @@ namespace AI_Evlo_Test
             lineToTarget.Y2 = Location2.Y;
         }
 
-        private void btnMutate_Click_1(object sender, RoutedEventArgs e)
-        {
-            MutateNN();
-        }
-
-        private void MutateNN()
-        {
-            lock (simLock)
-            {
-                if (SelectedObject == null || SelectedObject.NNetwork == null)
-                {
-                    Log("No agent is selected.");
-                    return;
-                }
-
-                SelectedObject.NNetwork = evoChember.MutateNN(SelectedObject.NNetwork, 1);
-
-                SelectedObject.NNetwork.Process();
-                double[] dblOutputs = SelectedObject.NNetwork.GetOutputs();
-                string strOutpust = String.Join(",", dblOutputs);
-
-                Log($"NN mutated. New Ouput: {strOutpust}");
-                Log($"Hiden layers: {SelectedObject.NNetwork.HiddenLayers.Count}" +
-                    $" Neurons: {SelectedObject.NNetwork.HiddenLayers[0].NeuronsInLayer.Count}");
-            }
-        }
-
         private void TxtLog_TextChanged(object sender, TextChangedEventArgs e)
         {
             txtLog.CaretIndex = txtLog.Text.Length;
@@ -299,6 +284,11 @@ namespace AI_Evlo_Test
         {
             if (newPopulation == null)
                 return;
+
+            newPopulation.NeuroNetTemplate?.EnsureLayerDefinitions();
+            newPopulation.LayerLocks = PopulationNeuralNetworkEvolution.NormalizeLocks(
+                newPopulation.LayerLocks,
+                (newPopulation.NeuroNetTemplate?.HiddenLayers ?? 0) + 1);
 
             newPopulation.StartingCycle = CycleCount;
             lsPopulations.Add(newPopulation);
@@ -448,6 +438,10 @@ namespace AI_Evlo_Test
             var itemDashboard = new System.Windows.Controls.MenuItem { Header = "Dashboard" };
             itemDashboard.Click += (s, args) => ShowPopulationDashboard(selPopul);
             menu.Items.Add(itemDashboard);
+
+            var itemNetworkDesigner = new System.Windows.Controls.MenuItem { Header = "Neural Network Designer" };
+            itemNetworkDesigner.Click += (s, args) => ShowPopulationNetworkDesigner(selPopul);
+            menu.Items.Add(itemNetworkDesigner);
 
             var itemGolden = new System.Windows.Controls.MenuItem
             {
@@ -610,6 +604,26 @@ namespace AI_Evlo_Test
 
         private void Log(string msg)
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+                    return;
+
+                try
+                {
+                    Dispatcher.BeginInvoke(
+                        DispatcherPriority.Background,
+                        new Action(() => Log(msg)));
+                }
+                catch (InvalidOperationException)
+                {
+                    // The window can close between the shutdown check and queueing the message.
+                }
+                return;
+            }
+
+            if (txtLog == null)
+                return;
             txtLog.AppendText(Environment.NewLine + msg);
         }
 
@@ -655,30 +669,6 @@ namespace AI_Evlo_Test
             }
         }
 
-        private void BtnVisualNet_Click_1(object sender, RoutedEventArgs e)
-        {
-            VisualizeNetwork formVisualNet = new VisualizeNetwork();
-            formVisualNet.ParentFormNN = this;
-            formVisualNet.VisualizerSendMessage += FormVisualNet_VisualizerSendMessage;
-            formVisualNet.Show();
-            // Read the live network under the lock — the simulation thread may be stepping it.
-            lock (simLock)
-            {
-                if (SelectedObject != null && SelectedObject.NNetwork != null)
-                {
-                    formVisualNet.ShowNNet(SelectedObject.NNetwork);
-                    formVisualNet.Status = "Neural network of the selected object is loaded.";
-                }
-                else
-                    formVisualNet.Status = "No neural network is loaded.";
-            }
-        }
-
-        private void FormVisualNet_VisualizerSendMessage(string Message)
-        {
-            Log(Message);
-        }
-
         private void DdlPopulationName_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ddlPopulationName.SelectedItem != null)
@@ -702,6 +692,7 @@ namespace AI_Evlo_Test
 
             pop.SpawnDelay = chkPopulationSpawnDelay.IsChecked == true;
             pop.PauseMutation = chkPopulationPauseMutation.IsChecked == true;
+            PopulationAutoGrowthPolicy.SetEnabled(pop, chkPopulationAutoGrow.IsChecked == true);
 
             // Read the brain size from the actual selected item (not the unreliable .Text)
             string nnType = (ddlPopulationNeuroNetType.SelectedItem as ListBoxItem)?.Content?.ToString();
@@ -710,7 +701,8 @@ namespace AI_Evlo_Test
             {
                 case "Medium": newTemplate = NeuroNetStructure.Mid_3Lx10N(); break;
                 case "Large": newTemplate = NeuroNetStructure.Big_5Lx20N(); break;
-                default: newTemplate = NeuroNetStructure.Small_1Lx9N(); break;
+                case "Small": newTemplate = NeuroNetStructure.Small_1Lx9N(); break;
+                default: newTemplate = pop.NeuroNetTemplate; break;
             }
             bool brainChanged = pop.NeuroNetTemplate == null || pop.NeuroNetTemplate.Id != newTemplate.Id;
             pop.NeuroNetTemplate = newTemplate;
@@ -762,6 +754,22 @@ namespace AI_Evlo_Test
             }
         }
 
+        private void ChkPopulationAutoGrow_Changed(object sender, RoutedEventArgs e)
+        {
+            Population pop = _selectedPopulation;
+            if (pop == null || !chkPopulationAutoGrow.IsEnabled)
+                return;
+
+            lock (simLock)
+            {
+                PopulationAutoGrowthPolicy.SetEnabled(pop, chkPopulationAutoGrow.IsChecked == true);
+                chkPopulationAutoGrow.ToolTip = pop.AutoGrowNeuralNetwork
+                    ? $"Next neural-network growth at survival {pop.NextAutoGrowSurvivalCycles:N0} cycles."
+                    : "Grow and protect this population's neural network when its survival record reaches the next doubling milestone.";
+                SaveSession();
+            }
+        }
+
         /// <summary>
         /// Disposes a population's current members and archived genes and grows a fresh set from
         /// its (new) NeuroNetTemplate / Being. Used when the brain size or species changes.
@@ -778,6 +786,12 @@ namespace AI_Evlo_Test
             pop.Members.Clear();
             pop.lsBestGenes.Clear(); // old genes are a different topology/species now
             pop.ResetGoldenBrain();
+            pop.SurvivalRecordCycles = 0;
+            pop.LayerLocks = PopulationNeuralNetworkEvolution.NormalizeLocks(
+                null,
+                pop.NeuroNetTemplate.HiddenLayers + 1);
+            if (pop.AutoGrowNeuralNetwork)
+                PopulationAutoGrowthPolicy.SetEnabled(pop, true);
 
             FillPopulationImmediate(pop, useArchive: false);
             EnsureGoldenAgent(pop);
@@ -1124,6 +1138,10 @@ namespace AI_Evlo_Test
         {
             pop.ObjectType = GetObjectTypeForBeing(pop.Being);
             pop.NeuroNetTemplate = ResolveRestoredNeuroNetTemplate(pop);
+            pop.NeuroNetTemplate.EnsureLayerDefinitions();
+            pop.LayerLocks = PopulationNeuralNetworkEvolution.NormalizeLocks(
+                pop.LayerLocks,
+                pop.NeuroNetTemplate.HiddenLayers + 1);
             DropIncompatibleSavedBrains(pop);
             if (pop.Members == null)
                 pop.Members = new List<ISmartObject>();
@@ -1170,13 +1188,15 @@ namespace AI_Evlo_Test
             if (template == null)
                 return null;
 
-            if (template.Id == "Small" || (template.HiddenLayers == 1 && template.NeuronsInHiddenLayer == 18))
+            bool legacyUniform = template.LayerDefinitions == null || template.LayerDefinitions.Count == 0;
+            if (template.Id == "Small" || (legacyUniform && template.HiddenLayers == 1 && template.NeuronsInHiddenLayer == 18))
                 return NeuroNetStructure.Small_1Lx9N();
-            if (template.Id == "Medium" || (template.HiddenLayers == 3 && template.NeuronsInHiddenLayer == 13))
+            if (template.Id == "Medium" || (legacyUniform && template.HiddenLayers == 3 && template.NeuronsInHiddenLayer == 13))
                 return NeuroNetStructure.Mid_3Lx10N();
-            if (template.Id == "Large" || (template.HiddenLayers == 5 && template.NeuronsInHiddenLayer == 20))
+            if (template.Id == "Large" || (legacyUniform && template.HiddenLayers == 5 && template.NeuronsInHiddenLayer == 20))
                 return NeuroNetStructure.Big_5Lx20N();
 
+            template.EnsureLayerDefinitions();
             return template;
         }
 
