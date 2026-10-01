@@ -50,6 +50,17 @@ namespace AI_Evlo_Test.Objects
         private readonly bool[,] _hitSomethings;
         private readonly double[] _rayDirsX;
         private readonly double[] _rayDirsY;
+        private readonly List<int> candidateIndices = new();
+        private readonly List<SensableSnapshot> candidates = new();
+
+        public void Update(Point location, Vector facing, SpatialPerceptionIndex index,
+            string selfId = null, ObjectCategory[] ignoredCategories = null)
+        {
+            double range = 0;
+            for (int i = 0; i < MaxDistances.Length; i++) range = Math.Max(range, MaxDistances[i]);
+            var nearby = index.Query(location, range, candidateIndices, candidates);
+            Update(location, facing, nearby, selfId, ignoredCategories);
+        }
 
         /// <summary>
         /// Per-ray hit info used by the visualizer. Set during Update().

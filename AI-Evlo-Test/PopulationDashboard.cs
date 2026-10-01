@@ -36,6 +36,8 @@ namespace AI_Evlo_Test
         public PopulationSample[] Series = Array.Empty<PopulationSample>();
         public GoldenLifetimeSample[] GoldenLifetimes = Array.Empty<GoldenLifetimeSample>();
         public GoldenAverageEvent[] GoldenEvents = Array.Empty<GoldenAverageEvent>();
+        public long EventRevision;
+        public int? RecordingStartedCycle;
 
         public NeuralNetworkGene GoldenInitialGene;
         public NeuralNetworkGene GoldenCurrentGene;
@@ -76,7 +78,10 @@ namespace AI_Evlo_Test
         private DashboardChart chartPop, chartFitness, chartEvolution, chartDeaths;
         private DashboardChart chartLongevity, chartCadence, chartPerLayer;
         private ListBox lstEvents;
-        private int lastEventCount = -1;
+        private long lastEventRevision = -1;
+        private TabControl tabs;
+        private NeuralNetworkGene displayedInitial, displayedCurrent;
+        private Label recordingLabel;
 
         private GeneDeltaNetworkView viewInitial, viewCurrent;
         private DataGridView gridChanged;
@@ -110,7 +115,7 @@ namespace AI_Evlo_Test
 
             timer.Tick += (s, e) => Refresh_();
             Load += (s, e) => { timer.Start(); Refresh_(); };
-            FormClosed += (s, e) => timer.Stop();
+            FormClosed += (s, e) => { timer.Stop(); timer.Dispose(); };
         }
 
         private void BuildUi()
@@ -156,27 +161,34 @@ namespace AI_Evlo_Test
             cmbPopulation.SelectedIndexChanged += OnPopulationSelected;
             selector.Controls.Add(selLabel);
             selector.Controls.Add(cmbPopulation);
+            var export = new Button { Text = "Export CSV…", AutoSize = true };
+            export.Click += ExportCsv_Click;
+            selector.Controls.Add(export);
 
             TableLayoutPanel header = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 56,
+                Height = 84,
                 ColumnCount = 2,
                 RowCount = 1,
                 BackColor = Color.White
             };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 400));
             header.Controls.Add(tiles, 0, 0);
             header.Controls.Add(selector, 1, 0);
 
-            TabControl tabs = new TabControl { Dock = DockStyle.Fill };
+            tabs = new TabControl { Dock = DockStyle.Fill };
             tabs.TabPages.Add(BuildPopulationTab());
             tabs.TabPages.Add(BuildGoldenTab());
             tabs.TabPages.Add(BuildBrainDiffTab());
+            tabs.SelectedIndexChanged += (s, e) => RenderCurrent();
+
+            recordingLabel = new Label { Dock = DockStyle.Bottom, Height = 26, Padding = new Padding(8, 4, 0, 0) };
 
             Controls.Add(tabs);
             Controls.Add(header);
+            Controls.Add(recordingLabel);
         }
 
         private TabPage BuildPopulationTab()
@@ -203,6 +215,7 @@ namespace AI_Evlo_Test
             chartFitness.SecondaryLabel = "mean";
             chartFitness.SecondaryColor = Color.FromArgb(90, 170, 90);
             chartEvolution = NewChart("Evolution rate — Δ mean longevity / 1000 cycles", Color.FromArgb(150, 80, 200));
+            chartEvolution.BaselineZero = false;
             chartEvolution.PrimaryLabel = "Δ / 1k";
             chartDeaths = NewChart("Agents lost per 1000 cycles (death rate)", Color.FromArgb(200, 70, 60));
             chartDeaths.PrimaryLabel = "lost / 1k";
@@ -380,6 +393,8 @@ namespace AI_Evlo_Test
                 return;
             string previous = currentPopulationId;
             currentPopulationId = opt.Id;
+            lastEventRevision = -1;
+            displayedInitial = displayedCurrent = null;
             try { onPopulationSwitched?.Invoke(previous, currentPopulationId); }
             catch { }
             RenderCurrent();
@@ -408,8 +423,13 @@ namespace AI_Evlo_Test
             SetTile(gldThreshold, Math.Ceiling(s.GoldenThreshold).ToString("0"));
             SetTile(gldRecord, s.GoldenRecordSurvivorCycles.ToString());
             SetTile(gldAge, s.GoldenAlive ? s.GoldenAge.ToString() : "—");
+            recordingLabel.Text = s.RecordingStartedCycle.HasValue
+                ? $"Recording since cycle {s.RecordingStartedCycle}; showing the latest {s.Series.Length} samples. History is collected while a dashboard is open."
+                : "Recording starts with the next simulation tick.";
 
             // Population charts.
+            if (tabs.SelectedIndex == 0)
+            {
             double[] aliveSeries = s.Series.Select(x => (double)x.Alive).ToArray();
             chartPop.SetLinePercentRight(aliveSeries, PercentOfSize(aliveSeries, s.SizeLimit));
             chartFitness.SetLine(
@@ -419,24 +439,34 @@ namespace AI_Evlo_Test
 
             double[] deathRate = DeathsPer1000Cycles(s.Series);
             chartDeaths.SetLinePercentRight(deathRate, PercentOfSize(deathRate, s.SizeLimit));
+            foreach (var chart in new[] { chartPop, chartFitness, chartEvolution, chartDeaths })
+                chart.SetCycles(s.Series.Select(x => (double)x.Cycle).ToArray());
+            }
 
             // Golden charts.
+            if (tabs.SelectedIndex == 1)
+            {
             chartLongevity.SetBars(s.GoldenLifetimes.Select(x => (double)x.Lifetime).ToArray());
             chartCadence.SetBars(MergeIntervals(s.GoldenEvents));
-            UpdateEvents(s.GoldenEvents);
+            UpdateEvents(s.GoldenEvents, s.EventRevision);
+            }
 
             // Brain diff.
+            if (tabs.SelectedIndex != 2 || (ReferenceEquals(displayedInitial, s.GoldenInitialGene)
+                && ReferenceEquals(displayedCurrent, s.GoldenCurrentGene))) return;
+            displayedInitial = s.GoldenInitialGene;
+            displayedCurrent = s.GoldenCurrentGene;
             viewInitial.SetGenes(s.GoldenInitialGene, s.GoldenCurrentGene);
             viewCurrent.SetGenes(s.GoldenInitialGene, s.GoldenCurrentGene);
             UpdateChangedTable(s.GoldenInitialGene, s.GoldenCurrentGene);
             chartPerLayer.SetBars(PerLayerMeanDelta(s.GoldenInitialGene, s.GoldenCurrentGene, out string[] labels), labels);
         }
 
-        private void UpdateEvents(GoldenAverageEvent[] events)
+        private void UpdateEvents(GoldenAverageEvent[] events, long revision)
         {
-            if (events.Length == lastEventCount)
+            if (revision == lastEventRevision)
                 return;
-            lastEventCount = events.Length;
+            lastEventRevision = revision;
 
             lstEvents.BeginUpdate();
             lstEvents.Items.Clear();
@@ -446,6 +476,20 @@ namespace AI_Evlo_Test
                 lstEvents.Items.Add($"cycle {ev.Cycle,-8}  merge #{ev.AverageCount,-4}  {ev.SurvivorId} (age {ev.SurvivorCycles})");
             }
             lstEvents.EndUpdate();
+        }
+
+        private void ExportCsv_Click(object sender, EventArgs e)
+        {
+            var snapshot = snapshotProvider?.Invoke(currentPopulationId);
+            if (snapshot == null) return;
+            using var dialog = new SaveFileDialog { Filter = "CSV files (*.csv)|*.csv", FileName = "population-statistics.csv" };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                System.IO.File.WriteAllText(dialog.FileName, Persistence.PopulationCsv.Export(snapshot), System.Text.Encoding.UTF8);
+                recordingLabel.Text = $"Exported {snapshot.Series.Length} samples to {dialog.FileName}";
+            }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Could not export statistics", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void UpdateChangedTable(NeuralNetworkGene initial, NeuralNetworkGene current)

@@ -48,9 +48,12 @@ namespace AI_Evlo_Test.Objects
     {
         private readonly object gate = new object();
 
-        private readonly List<PopulationSample> samples = new List<PopulationSample>();
-        private readonly List<GoldenLifetimeSample> goldenLifetimes = new List<GoldenLifetimeSample>();
-        private readonly List<GoldenAverageEvent> goldenEvents = new List<GoldenAverageEvent>();
+        private readonly BoundedHistory<PopulationSample> samples = new();
+        private readonly BoundedHistory<GoldenLifetimeSample> goldenLifetimes = new();
+        private readonly BoundedHistory<GoldenAverageEvent> goldenEvents = new();
+        public long EventRevision { get { lock (gate) return eventRevision; } }
+        private long eventRevision;
+        public int? RecordingStartedCycle { get; private set; }
 
         private int lastSampleCycle;
         private bool hasSampled;
@@ -76,6 +79,7 @@ namespace AI_Evlo_Test.Objects
                 return;
             hasSampled = true;
             lastSampleCycle = currentCycle;
+            RecordingStartedCycle ??= currentCycle;
 
             int alive = 0;
             double top = double.NegativeInfinity, fitnessSum = 0, ageSum = 0;
@@ -105,7 +109,7 @@ namespace AI_Evlo_Test.Objects
             };
 
             lock (gate)
-                Push(samples, sample, MaxSamples);
+                samples.Add(sample, MaxSamples);
         }
 
         public void RecordGoldenAverage(int currentCycle, int averageCount, string survivorId, int survivorCycles)
@@ -118,39 +122,36 @@ namespace AI_Evlo_Test.Objects
                 SurvivorCycles = survivorCycles
             };
             lock (gate)
-                Push(goldenEvents, ev, MaxGoldenEvents);
+            {
+                goldenEvents.Add(ev, MaxGoldenEvents);
+                eventRevision++;
+            }
         }
 
         public void RecordGoldenDeath(int currentCycle, int lifetimeCycles)
         {
             GoldenLifetimeSample s = new GoldenLifetimeSample { Cycle = currentCycle, Lifetime = lifetimeCycles };
             lock (gate)
-                Push(goldenLifetimes, s, MaxGoldenLifetimes);
+                goldenLifetimes.Add(s, MaxGoldenLifetimes);
         }
 
         public PopulationSample[] SnapshotSamples()
         {
             lock (gate)
-                return samples.ToArray();
+                return samples.Snapshot();
         }
 
         public GoldenLifetimeSample[] SnapshotGoldenLifetimes()
         {
             lock (gate)
-                return goldenLifetimes.ToArray();
+                return goldenLifetimes.Snapshot();
         }
 
         public GoldenAverageEvent[] SnapshotGoldenEvents()
         {
             lock (gate)
-                return goldenEvents.ToArray();
+                return goldenEvents.Snapshot();
         }
 
-        private static void Push<T>(List<T> buffer, T value, int max)
-        {
-            buffer.Add(value);
-            if (buffer.Count > max)
-                buffer.RemoveAt(0);
-        }
     }
 }

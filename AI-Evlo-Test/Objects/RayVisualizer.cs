@@ -66,21 +66,28 @@ namespace AI_Evlo_Test.Objects
         /// </summary>
         public void Draw(Point agentLocation, RayPerception perception)
         {
+            if (perception == null) { Hide(); return; }
+            var hits = (RayHit[,])perception.HitLayers.Clone();
+            for (int i = 0; i < perception.RayCount; i++) hits[i, 0] = GetHit(perception, i, 0);
+            DrawSnapshot(agentLocation, hits);
+        }
+        public void DrawSnapshot(Point agentLocation, RayHit[,] hits)
+        {
             if (!_isVisible)
                 return;
 
-            if (perception == null)
+            if (hits == null)
             {
                 Hide();
                 return;
             }
 
-            EnsureElements(perception.RayCount);
+            EnsureElements(hits.GetLength(0));
 
-            for (int r = 0; r < perception.RayCount; r++)
+            for (int r = 0; r < hits.GetLength(0); r++)
             {
-                RayHit firstHit = GetHit(perception, r, 0);
-                RayHit secondHit = GetHit(perception, r, 1);
+                RayHit firstHit = hits[r, 0];
+                RayHit secondHit = hits[r, 1];
                 Line firstLine = _rayLines[VisualIndex(r, 0)];
                 Line secondLine = _rayLines[VisualIndex(r, 1)];
                 Ellipse firstDot = _hitDots[VisualIndex(r, 0)];
@@ -100,7 +107,7 @@ namespace AI_Evlo_Test.Objects
             }
 
             // Hide any extra pooled elements
-            for (int i = VisualElementCount(perception.RayCount); i < _rayLines.Count; i++)
+            for (int i = VisualElementCount(hits.GetLength(0)); i < _rayLines.Count; i++)
             {
                 _rayLines[i].Visibility = Visibility.Collapsed;
                 _hitDots[i].Visibility = Visibility.Collapsed;

@@ -1,8 +1,7 @@
-﻿using AI_Evlo_Test.ConfigLib;
+using AI_Evlo_Test.ConfigLib;
 using AI_Evlo_Test.Enumerators;
 using ArtificialNeuralNetwork;
 using ArtificialNeuralNetwork.Genes;
-using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -468,36 +467,14 @@ namespace AI_Evlo_Test.Objects
             if (population == null)
                 return RegrowthBrainSource.Random();
 
-            // genreate random number 1 to 1000
-            int random1000 = DateAndTime.Now.Millisecond + 1;
-
-            if (random1000 < 100) 
-                return BestOverall(population, mutate: false);  //10%  copy the best
-            else if (random1000 < 200)
-                return RegrowthBrainSource.Random();  //10 %
-            else if (random1000 < 300)
-                return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestMutated, BestAlive(population));  //10%
-            else
+            return population.RegrowModeIndex switch
             {
-                return BestOverall(population, mutate: true); //70%  evolve the best
-            }
-            //    return RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestExact, BestAlive(population));
-        }
-
-        private static RegrowthBrainSource BestOverall(Population population, bool mutate)
-        {
-            ISmartObject alive = BestAlive(population);
-            GenomeRecord archived = BestArchived(population);
-
-            bool useAlive = alive != null && (archived == null || alive.Fitness >= archived.Fitness);
-            if (useAlive)
-                return RegrowthBrainSource.Alive(
-                    mutate ? RegrowthBrainSourceKind.AliveBestMutated : RegrowthBrainSourceKind.AliveBestExact,
-                    alive);
-
-            return RegrowthBrainSource.Archived(
-                mutate ? RegrowthBrainSourceKind.ArchivedBestMutated : RegrowthBrainSourceKind.ArchivedBestExact,
-                archived);
+                0 => RegrowthBrainSource.Archived(RegrowthBrainSourceKind.ArchivedBestExact, BestArchived(population)),
+                1 => RegrowthBrainSource.Archived(RegrowthBrainSourceKind.ArchivedBestMutated, BestArchived(population)),
+                2 => RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestExact, BestAlive(population)),
+                3 => RegrowthBrainSource.Alive(RegrowthBrainSourceKind.AliveBestMutated, BestAlive(population)),
+                _ => RegrowthBrainSource.Random()
+            };
         }
 
         private static ISmartObject BestAlive(Population population)

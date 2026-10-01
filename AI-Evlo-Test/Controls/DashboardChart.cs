@@ -12,6 +12,8 @@ namespace AI_Evlo_Test
         private double[] secondary = Array.Empty<double>();
         private string[] labels = Array.Empty<string>();
         private ChartKind kind;
+        private double[] cycles = Array.Empty<double>();
+        public void SetCycles(double[] values) { cycles = Copy(values); Invalidate(); }
 
         public string Caption { get; set; } = "";
         public Color PrimaryColor { get; set; } = Color.FromArgb(40, 120, 215);
@@ -31,6 +33,7 @@ namespace AI_Evlo_Test
             primary = Copy(primaryValues);
             secondary = Copy(secondaryValues);
             labels = Array.Empty<string>();
+            cycles = Array.Empty<double>();
             kind = ChartKind.Line;
             Invalidate();
         }
@@ -40,6 +43,7 @@ namespace AI_Evlo_Test
             primary = Copy(primaryValues);
             secondary = Copy(percentValues);
             labels = Array.Empty<string>();
+            cycles = Array.Empty<double>();
             kind = ChartKind.LinePercent;
             Invalidate();
         }
@@ -49,6 +53,7 @@ namespace AI_Evlo_Test
             primary = Copy(values);
             secondary = Array.Empty<double>();
             labels = axisLabels?.ToArray() ?? Array.Empty<string>();
+            cycles = Array.Empty<double>();
             kind = ChartKind.Bars;
             Invalidate();
         }
@@ -61,7 +66,7 @@ namespace AI_Evlo_Test
 
             using var titleFont = new Font(Font, FontStyle.Bold);
             graphics.DrawString(Caption ?? "", titleFont, Brushes.DimGray, 8, 5);
-            Rectangle plot = new Rectangle(42, 28, Math.Max(1, Width - 54), Math.Max(1, Height - 54));
+            Rectangle plot = new Rectangle(58, 32, Math.Max(1, Width - 110), Math.Max(1, Height - 76));
             using var gridPen = new Pen(Color.FromArgb(235, 238, 242));
             using var axisPen = new Pen(Color.FromArgb(120, 126, 136));
             for (int i = 0; i <= 4; i++)
@@ -93,6 +98,20 @@ namespace AI_Evlo_Test
             if (max <= min)
                 max = min + 1;
 
+            for (int i = 0; i <= 4; i++)
+            {
+                double value = max - (max - min) * i / 4;
+                graphics.DrawString(value.ToString("0.##"), Font, Brushes.DimGray, 2, plot.Top + plot.Height * i / 4 - 6);
+                if (kind == ChartKind.LinePercent)
+                    graphics.DrawString((100 - 25 * i) + "%", Font, Brushes.DimGray, plot.Right + 4, plot.Top + plot.Height * i / 4 - 6);
+            }
+            if (cycles.Length > 0)
+            {
+                graphics.DrawString(cycles[0].ToString("0"), Font, Brushes.DimGray, plot.Left, plot.Bottom + 4);
+                string end = cycles[cycles.Length - 1].ToString("0");
+                graphics.DrawString(end, Font, Brushes.DimGray, plot.Right - graphics.MeasureString(end, Font).Width, plot.Bottom + 4);
+                graphics.DrawString("Simulation cycle", Font, Brushes.DimGray, plot.Left + plot.Width / 2 - 40, plot.Bottom + 20);
+            }
             DrawLine(graphics, plot, primary, min, max, PrimaryColor);
             if (secondary.Length > 0)
             {
@@ -105,6 +124,8 @@ namespace AI_Evlo_Test
         private void DrawBars(Graphics graphics, Rectangle plot)
         {
             double max = Math.Max(1, primary.Max());
+            graphics.DrawString(max.ToString("0.##"), Font, Brushes.DimGray, 2, plot.Top - 6);
+            graphics.DrawString("0", Font, Brushes.DimGray, 2, plot.Bottom - 6);
             float slot = (float)plot.Width / primary.Length;
             using var brush = new SolidBrush(PrimaryColor);
             for (int i = 0; i < primary.Length; i++)
@@ -117,7 +138,7 @@ namespace AI_Evlo_Test
             }
         }
 
-        private static void DrawLine(Graphics graphics, Rectangle plot, double[] values,
+        private void DrawLine(Graphics graphics, Rectangle plot, double[] values,
             double min, double max, Color color)
         {
             if (values.Length == 0)
@@ -125,7 +146,9 @@ namespace AI_Evlo_Test
 
             using var pen = new Pen(color, 2);
             PointF PreviousPoint(int index) => new PointF(
-                plot.Left + (values.Length == 1 ? 0 : (float)index / (values.Length - 1) * plot.Width),
+                plot.Left + (cycles.Length == values.Length && cycles.Length > 1 && cycles[cycles.Length - 1] > cycles[0]
+                    ? (float)((cycles[index] - cycles[0]) / (cycles[cycles.Length - 1] - cycles[0])) * plot.Width
+                    : values.Length == 1 ? 0 : (float)index / (values.Length - 1) * plot.Width),
                 plot.Bottom - (float)((values[index] - min) / (max - min) * plot.Height));
 
             PointF previous = PreviousPoint(0);

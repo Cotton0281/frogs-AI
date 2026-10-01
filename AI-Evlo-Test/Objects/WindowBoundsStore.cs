@@ -12,7 +12,8 @@ namespace AI_Evlo_Test.Objects
     /// </summary>
     internal static class WindowBoundsStore
     {
-        private static string FilePath => Path.Combine(
+        internal static string FilePathOverride { get; set; }
+        private static string FilePath => FilePathOverride ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "AI-Evlo", "window-sizes.json");
 

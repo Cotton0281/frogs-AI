@@ -110,7 +110,7 @@ Built with the `ArtificialNeuralNetwork` factory chain: `NeuralNetworkFactory` �
 | `Objects/PopulationNeuralNetworkEvolution.cs` | Atomic population-wide residual growth and survival-milestone auto-growth policy |
 | `PopulationDashboard.cs` | Per-population dashboard (WinForms): live charts, golden-agent stats, initial-vs-current brain diff; header dropdown switches the active population live |
 | `MainWindow.Dashboard.cs` | Dashboard host: context-menu entry, ref-counted attach/detach of the stats collector, population-list + by-id snapshot providers (all under `simLock`) |
-| `Controls/DashboardChart.cs` | ScottPlot-backed line/bar chart wrapper (`SetLine`/`SetBars`) used by the dashboard |
+| `Controls/DashboardChart.cs` | GDI+ line/bar chart wrapper with cycle and numeric axes (`SetLine`/`SetBars`) used by the dashboard |
 | `Controls/GeneDeltaNetworkView.cs` | Gene-driven NN view colour-coding change (black→red) between two genes |
 | `Objects/PopulationStats.cs` | Runtime-only, attach-on-demand history collector for one population |
 
@@ -128,9 +128,9 @@ current `GoldenAgentGene`.
 
 ## Key Dependencies
 
-- **NeuralNetwork 7.4.0** (`ArtificialNeuralNetwork` namespace): neural network engine.
+- **In-repository compatibility engine** (`Compatibility/`, `ArtificialNeuralNetwork` namespace): neural network engine.
 - **Newtonsoft.Json 13.0.x**: population serialization.
-- **ScottPlot.WinForms 5.x** (pulls SkiaSharp): dashboard charts (`Controls/DashboardChart.cs`).
+- Dashboard charts use WinForms/GDI+ (`Controls/DashboardChart.cs`); no external chart package is required.
 
 ## Code Conventions
 
@@ -146,7 +146,7 @@ current `GoldenAgentGene`.
   `Targets`). Rules: (1) the model step (`SimulationTick` and everything it calls) must never
   touch WPF or read DependencyProperties — use the cached `canvasWidth`/`canvasHeight` instead of
   `ActualWidth`/`ActualHeight`; (2) agent visuals are created/removed only on the UI thread —
-  the model creates agents with `VisibleShape == null` and `ReconcileVisuals` builds them (and
+  the model creates agents with `VisibleShape == null` and `PaintWorldFrame` builds them (and
   drains `_visualsToRemove` for disposed ones) each frame; (3) any UI handler that mutates model
   state must take `lock (simLock)`. The Speed slider sets `simStepDelayMs` (0 = run flat-out).
-  UI updates (sprites, transforms, ray visualizer) run only when `isHeadlessMode` is false.
+  UI updates (sprites, transforms, ray visualizer) run only when `isHeadlessMode` is false. `MainWindow.Rendering.cs` captures scalar snapshots under `simLock` and paints outside it; headless batches release the lock after each tick. `SpatialPerceptionIndex` is rebuilt once per tick and queried concurrently, preserving full-scan order and falling back to scanning dense worlds.

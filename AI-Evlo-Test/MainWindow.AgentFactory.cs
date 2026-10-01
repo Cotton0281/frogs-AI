@@ -35,35 +35,6 @@ namespace AI_Evlo_Test
                 _visualsToRemove.Add(shape);
         }
 
-        /// <summary>
-        /// UI-thread visual reconciliation: removes shapes of disposed agents and creates shapes
-        /// for newly spawned ones. Lets the model step stay free of any WPF calls.
-        /// </summary>
-        private void ReconcileVisuals()
-        {
-            for (int i = 0; i < _visualsToRemove.Count; i++)
-            {
-                FrameworkElement shape = _visualsToRemove[i];
-                shape.MouseDown -= ObjectInterface_MouseDown;
-                shapeToObjectMap.Remove(shape);
-                panlUniverseView.Children.Remove(shape);
-            }
-            _visualsToRemove.Clear();
-
-            for (int i = 0; i < lsObjects.Count; i++)
-            {
-                ISmartObject o = lsObjects[i];
-                if (o.VisibleShape != null)
-                    continue;
-
-                EnsureVisualForObject(o, FindPopulationForObject(o));
-                if (o is SmartObject s && s.IsGoldenAgent)
-                    ApplyGoldenVisual(o);
-                if (o.VisibleShape != null)
-                    DrawImage(o.VisibleShape, o.Location);
-            }
-        }
-
         private Population CreatePopulation(int PopulationSize, string PopulationName, string nnType, PopulationBeing being)
         {
             if (PopulationSize < 1)
@@ -249,7 +220,7 @@ namespace AI_Evlo_Test
             newObj.SetLocation(
                 spawnAtParentLocation ? parent.Location.X : parent.Location.X + 1,
                 spawnAtParentLocation ? parent.Location.Y : parent.Location.Y + 1);
-            // Visual is created lazily by ReconcileVisuals on the UI thread.
+            // Visual is created lazily by PaintWorldFrame on the UI thread.
             newObj.Generation = parent.Generation + 1;
             newObj.ParentId = parent.ID;
             newObj.ID = population.GenerateMemberId(parent);
@@ -293,7 +264,7 @@ namespace AI_Evlo_Test
             if (goldenAgent is SmartObject smart)
                 smart.IsGoldenAgent = true;
 
-            // The golden tint/glow is applied by ReconcileVisuals when its visual is created.
+            // The golden tint/glow is applied by PaintWorldFrame when its visual is created.
             population.GoldenAgent = goldenAgent;
             lsObjects.Add(goldenAgent);
         }
@@ -370,7 +341,7 @@ namespace AI_Evlo_Test
         }
 
         // The factory methods below build model-only agents (no WPF). The visual is created
-        // lazily on the UI thread by ReconcileVisuals so these can run on the simulation thread.
+        // lazily on the UI thread by PaintWorldFrame so these can run on the simulation thread.
         private Bird NewBird(NeuroNetStructure NeuroNetTemplate, SolidColorBrush ColorBrush)
         {
             Bird newObj = new Bird(NeuroNetTemplate, ref randomInit);

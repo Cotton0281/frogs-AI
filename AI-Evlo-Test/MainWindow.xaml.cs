@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -170,54 +170,42 @@ namespace AI_Evlo_Test
 
         // Paints the latest simulation snapshot every WPF frame (~60 fps) on the UI thread,
         // independent of how fast the background simulation thread is stepping. All model
-        // reads happen under simLock so the simulation thread can't mutate mid-frame.
+        // reads happen under simLock; captured values are painted after releasing it.
         private void OnRendering(object sender, EventArgs e)
         {
-            if (isHeadlessMode)
+            bool updateHud = (DateTime.Now - dtLastLabelsUpdate).TotalMilliseconds >= 200;
+            if (isHeadlessMode && !updateHud) return;
+            WorldFrame world = null;
+            HudFrame hud = null;
+            // Skip a busy frame rather than blocking the dispatcher behind a simulation batch.
+            if (!Monitor.TryEnter(simLock)) return;
+            try
             {
-                // No sprite rendering in headless mode, but keep the status bar live so the
-                // user can see training progress (cycle count, cycles/s, agents alive).
-                // Throttled to ~5x/sec; the model reads happen under simLock.
-                if (DateTime.Now.Subtract(dtLastLabelsUpdate) < new TimeSpan(0, 0, 0, 0, 200))
-                    return;
-                dtLastLabelsUpdate = DateTime.Now;
-                lock (simLock)
-                    UpdateStatusBar();
-                return;
-            }
-
-            lock (simLock)
-            {
-                // Reselect when the inspected agent has died or left the model.
-                if (!TryGetRenderableSelectedSmartObject(out _))
-                    SelectObject(GetTopFitnessObject());
-
-                RenderWorld();
-                UpdateLabbels();
-                UpdateRaftAnimation();
-
-                // Draw line to selected agent
-                if (eEnvironmentType == EEnvironmentType.OneTarget)
+                if (!isHeadlessMode)
                 {
-                    if (SelectedObject != null && SelectedObject.HP > 0)
-                        drawLine(SelectedObject.Location, Target.Location);
-                    else
-                        drawLine(Target.Location, Target.Location);
+                    if (!TryGetRenderableSelectedSmartObject(out _)) SelectObject(GetTopFitnessObject());
+                    world = CaptureWorldFrame();
                 }
+                if (updateHud) hud = CaptureHudFrame();
+            }
+            finally { Monitor.Exit(simLock); }
+            if (world != null) PaintWorldFrame(world);
+            if (hud != null)
+            {
+                dtLastLabelsUpdate = DateTime.Now;
+                PaintHudFrame(hud);
             }
         }
-
         // Background simulation loop. Owns the model and steps it under simLock; the UI thread
-        // only reads the model (for rendering) while holding the same lock.
+        // captures render snapshots while holding the same lock.
         private void ExecuteSimulationBatch(int batch)
         {
-            lock (simLock)
+            for (int i = 0; i < batch && simulationRunning; i++)
             {
-                for (int i = 0; i < batch && simulationRunning; i++)
-                    SimulationTick();
+                lock (simLock) SimulationTick();
+                if (isHeadlessMode && i % 8 == 7) Thread.Yield();
             }
         }
-
         private void EvoChember_NewMessage(string Message)
         {
             Log(Message);
@@ -258,7 +246,7 @@ namespace AI_Evlo_Test
             // Capture user choices before any event-driven overwriting
             string chosenNNType = (ddlPopulationNeuroNetType.SelectedItem as ListBoxItem)?.Content.ToString() ?? "Small";
             PopulationBeing chosenBeing = GetSelectedPopulationBeing();
-            int chosenSize = int.TryParse(txtPopulationSize.Text, out int parsed) ? parsed : 1;
+            if (!TryReadPopulationSize(out int chosenSize)) return;
 
             //Prepare the name of the population
             if (ddlPopulationName.Text.Trim() == "")
@@ -361,10 +349,21 @@ namespace AI_Evlo_Test
             Grid.SetColumn(iconHolder, 1);
 
             var title = new TextBlock { FontWeight = FontWeights.Bold, FontSize = 11.5, Text = pop.Name };
-            var stats = new TextBlock { FontSize = 9.5, Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0x52, 0x60)), Text = "collecting data…", TextWrapping = TextWrapping.NoWrap };
+            var stats = new TextBlock { FontSize = 9.5, Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0x52, 0x60)), Text = "collecting data…", TextWrapping = TextWrapping.Wrap };
             var textPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             textPanel.Children.Add(title);
             textPanel.Children.Add(stats);
+            var actions = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+            void ActionButton(string label, Action action)
+            {
+                var button = new Button { Content = label, Margin = new Thickness(0, 0, 4, 2), FontSize = 11 };
+                button.Click += (sender, args) => { action(); args.Handled = true; };
+                actions.Children.Add(button);
+            }
+            ActionButton("Dashboard", () => ShowPopulationDashboard(pop));
+            ActionButton("Brain", () => ShowPopulationNetworkDesigner(pop));
+            ActionButton("Members", () => ShowPopulationListForm(pop));
+            textPanel.Children.Add(actions);
             Grid.SetColumn(textPanel, 2);
 
             var grid = new Grid();
@@ -377,7 +376,7 @@ namespace AI_Evlo_Test
 
             var root = new Border
             {
-                Width = 272,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 CornerRadius = new CornerRadius(5),
                 BorderBrush = Brushes.Gray,
                 BorderThickness = new Thickness(1),
@@ -580,7 +579,10 @@ namespace AI_Evlo_Test
             if (e.LeftButton == MouseButtonState.Pressed)
             {
                 if (shapeToObjectMap.TryGetValue(senderElement, out ISmartObject newSelectedObject))
+                {
+                    ShowAgentInspector();
                     SelectObject(newSelectedObject);
+                }
             }
             else if (e.RightButton == MouseButtonState.Pressed)
             {
@@ -652,11 +654,14 @@ namespace AI_Evlo_Test
 
         private void PanlUniverseView_Loaded(object sender, RoutedEventArgs e)
         {
+            lock (simLock)
+            {
             canvasWidth = panlUniverseView.ActualWidth;
             canvasHeight = panlUniverseView.ActualHeight;
             InitTargets();
             rayVisualizer = new RayVisualizer(panlUniverseView, 8);
             RestoreOrSeedDefaultScenario();
+            }
         }
 
         private void BtnDeleteObject_Click(object sender, RoutedEventArgs e)
@@ -687,8 +692,8 @@ namespace AI_Evlo_Test
 
             lock (simLock)
             {
-            if (int.TryParse(txtPopulationSize.Text, out int intSize) && intSize > 0)
-                pop.SizeLimit = intSize;
+            if (!TryReadPopulationSize(out int intSize)) return;
+            pop.SizeLimit = intSize;
 
             pop.SpawnDelay = chkPopulationSpawnDelay.IsChecked == true;
             pop.PauseMutation = chkPopulationPauseMutation.IsChecked == true;
@@ -897,7 +902,9 @@ namespace AI_Evlo_Test
 
         private void DdlEnvirnoment_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (panlUniverseView == null || simulationRunner == null) return;
             ComboBoxItem SelectedItem = (ComboBoxItem)ddlEnvirnoment.SelectedValue;
+            if (SelectedItem == null) return;
             lock (simLock)
             {
                 if (SelectedItem.Content.ToString() == "Food is moving" && eEnvironmentType != EEnvironmentType.OneTarget)
@@ -957,6 +964,8 @@ namespace AI_Evlo_Test
 
         private void panlUniverseView_SizeChanged(object sender, SizeChangedEventArgs e)
         {
+            lock (simLock)
+            {
             canvasWidth = panlUniverseView.ActualWidth;
             canvasHeight = panlUniverseView.ActualHeight;
 
@@ -974,22 +983,44 @@ namespace AI_Evlo_Test
 
                 }
             }
+            }
         }
 
         private void windowEnvirnoment_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            simulationRunner.Stop(TimeSpan.FromSeconds(1));
+            if (!simulationRunner.Stop(TimeSpan.FromSeconds(1)))
+            {
+                e.Cancel = true;
+                Log("Waiting for the current simulation tick to finish. Close again when it has stopped.");
+                return;
+            }
+            bool saved;
+            lock (simLock) saved = SaveSession();
+            if (!saved)
+            {
+                e.Cancel = true;
+                btnStart.Content = "▶ Start";
+                btnStart.Background = HpGreen;
+                MessageBox.Show(this, "The session could not be saved. The simulation is paused; check the activity log and try closing again.", "Could not save session");
+                return;
+            }
+            CompositionTarget.Rendering -= OnRendering;
+            foreach (var dashboard in _openDashboards.ToArray()) dashboard.Close();
+            _populationListForm?.Close();
+            _networkDesigner?.Close();
             Objects.WindowBoundsStore.Save("MainWindow", ActualWidth, ActualHeight);
             SaveMovementSettings();
-            SaveSession();
+            simulationRunner.Dispose();
             lblStatusBar.Content = $"Saved {lsPopulations.Count} population(s).";
         }
-
         /// <summary>Per-user folder holding the last session.</summary>
+        internal static string SessionDirectoryOverride { get; set; }
+
         private static string SaveDirectory
         {
             get
             {
+                if (SessionDirectoryOverride != null) return SessionDirectoryOverride;
                 string dir = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "AI-Evlo", "populations");
@@ -1058,15 +1089,17 @@ namespace AI_Evlo_Test
         /// mirrors <see cref="lsPopulations"/> exactly, a deleted population can never linger and
         /// reload, and the saved set is always "what was loaded when the app closed".
         /// </summary>
-        private void SaveSession()
+        private bool SaveSession()
         {
             try
             {
                 new SessionStore(SaveDirectory).Save(lsPopulations.ToList());
+                return true;
             }
             catch (Exception ex)
             {
                 Log("Could not save session: " + ex.Message);
+                return false;
             }
         }
 

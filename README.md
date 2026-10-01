@@ -58,10 +58,20 @@ is "seeing," and a live leaderboard of populations and their best genes — so t
 evolution happen and intervene (add a species, change a brain, cull a population). On first launch it
 restores your last session, or seeds a default scenario (2 rafts, 50 frogs, 10 birds) and starts running.
 
+## Desktop controls and experiments
+
+- Resize the population sidebar with its divider. Expand **Population settings / Create new** to edit or add populations; click an agent to open its inspector. The activity log can be expanded beneath the world view.
+- Each population card exposes **Dashboard**, **Brain**, and **Members** directly. Keyboard shortcuts: **Ctrl+Space** start/pause, **Ctrl+D** dashboard, **Ctrl+B** brain designer, **Ctrl+M** members.
+- **Save preset** writes a named `.scenario.json` starting scenario containing environment, movement costs, species, population sizes, topology, layer locks, and evolution settings. **Load preset** replaces the ecosystem after confirmation and leaves it paused with fresh brains. Presets do not save learned genomes, live positions, history, or random seeds. Existing session saves still preserve archived and golden brains.
+- Dashboard **Export CSV** exports the collected population samples with simulation cycles and the recording start cycle. Recording remains on demand: history is collected while at least one dashboard watches the population, and only the newest bounded samples are retained.
+- Regrowth rotates through archived exact, archived mutated, live exact, live mutated, and parentless sources. The existing parentless rule uses the best compatible archive when available, otherwise a fresh random brain; unavailable sources use this same fallback. It never chooses sources from wall-clock time.
+- Rendering captures world state under a short simulation lock and paints outside it. Perception uses a reusable spatial index for sparse worlds and falls back to the original scan for dense worlds, preserving sensor hit order.
+
+Run regression tests with `dotnet test AI-Evlo-WPF.sln -c Release`. For measurement output, add `--filter TestCategory=Performance --logger "console;verbosity=detailed"`. Benchmarks cover 100, 500, and 1,000 agents; frame measurements include snapshot capture and visual updates, not display composition. UI tests render previews under `TestResults/ui-previews` at minimum size and 100–200% raster DPI. Tests use temporary session and window-size folders.
+
 ## Build & run
 
-- **Stack:** C# / WPF on .NET 10 Windows. Neural network engine:
-  [`NeuralNetwork` 7.4.0](https://www.nuget.org/packages/NeuralNetwork) (`ArtificialNeuralNetwork` compatibility layer).
+- **Stack:** C# / WPF on .NET 10 Windows. Neural network engine: the in-repository `ArtificialNeuralNetwork` compatibility implementation.
 - Restore packages, then build the solution:
 
 ```bash

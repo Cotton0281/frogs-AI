@@ -19,6 +19,10 @@ namespace AI_Evlo_Test
         // collector attached while >=1 dashboard watches it; the count lets switching/closing free it
         // only once the last watcher is gone.
         private readonly Dictionary<string, int> _statsWatchCount = new Dictionary<string, int>();
+        private readonly Dictionary<string, (ArtificialNeuralNetwork.Genes.NeuralNetworkGene InitialSource,
+            ArtificialNeuralNetwork.Genes.NeuralNetworkGene CurrentSource,
+            ArtificialNeuralNetwork.Genes.NeuralNetworkGene InitialCopy,
+            ArtificialNeuralNetwork.Genes.NeuralNetworkGene CurrentCopy)> dashboardGenes = new();
 
         private void ShowPopulationDashboard(Population population)
         {
@@ -136,6 +140,7 @@ namespace AI_Evlo_Test
                 }
 
                 _statsWatchCount.Remove(populationId);
+                dashboardGenes.Remove(populationId);
                 Population population = lsPopulations.FirstOrDefault(p => p.ID == populationId);
                 if (population != null)
                     population.Stats = null;
@@ -188,6 +193,15 @@ namespace AI_Evlo_Test
                 }
 
                 PopulationStats stats = population.Stats;
+                if (!dashboardGenes.TryGetValue(population.ID, out var genes)
+                    || !ReferenceEquals(genes.InitialSource, population.GoldenInitialGene)
+                    || !ReferenceEquals(genes.CurrentSource, population.GoldenAgentGene))
+                {
+                    genes = (population.GoldenInitialGene, population.GoldenAgentGene,
+                        population.GoldenInitialGene == null ? null : Utils.CloneGene(population.GoldenInitialGene),
+                        population.GoldenAgentGene == null ? null : Utils.CloneGene(population.GoldenAgentGene));
+                    dashboardGenes[population.ID] = genes;
+                }
                 return new PopulationDashboardSnapshot
                 {
                     Name = population.Name,
@@ -211,13 +225,11 @@ namespace AI_Evlo_Test
                     Series = stats?.SnapshotSamples() ?? Array.Empty<PopulationSample>(),
                     GoldenLifetimes = stats?.SnapshotGoldenLifetimes() ?? Array.Empty<GoldenLifetimeSample>(),
                     GoldenEvents = stats?.SnapshotGoldenEvents() ?? Array.Empty<GoldenAverageEvent>(),
+                    EventRevision = stats?.EventRevision ?? 0,
+                    RecordingStartedCycle = stats?.RecordingStartedCycle,
 
-                    GoldenInitialGene = population.GoldenInitialGene != null
-                        ? Utils.CloneGene(population.GoldenInitialGene)
-                        : null,
-                    GoldenCurrentGene = population.GoldenAgentGene != null
-                        ? Utils.CloneGene(population.GoldenAgentGene)
-                        : null
+                    GoldenInitialGene = genes.InitialCopy,
+                    GoldenCurrentGene = genes.CurrentCopy
                 };
             }
         }

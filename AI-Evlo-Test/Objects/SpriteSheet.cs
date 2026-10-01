@@ -56,7 +56,7 @@ namespace AI_Evlo_Test.Objects
             {
                 var sheet = new BitmapImage();
                 sheet.BeginInit();
-                sheet.UriSource = new Uri("pack://application:,,,/" + resourceRelativePath, UriKind.Absolute);
+                sheet.UriSource = new Uri("pack://application:,,,/" + typeof(SpriteSheet).Assembly.GetName().Name + ";component/" + resourceRelativePath, UriKind.Absolute);
                 sheet.CacheOption = BitmapCacheOption.OnLoad;
                 sheet.EndInit();
                 sheet.Freeze();

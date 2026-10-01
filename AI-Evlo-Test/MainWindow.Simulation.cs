@@ -153,7 +153,7 @@ namespace AI_Evlo_Test
 
         private void MoveAgentsEnvirnoment1()
         {
-            IReadOnlyList<SensableSnapshot> snapshot = BuildSensableSnapshot();
+            BuildSensableSnapshot();
             double targetRadius = Target.Size / 2;
 
             Parallel.ForEach(lsObjects, smartObject =>
@@ -161,7 +161,7 @@ namespace AI_Evlo_Test
                 SmartObject smart = smartObject as SmartObject;
 
                 // Each species declares what it can and cannot perceive
-                smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
+                smart.Perception.Update(smart.Location, smart.FaceDirection, perceptionIndex, smart.ID, smart.IgnoredCategories);
 
                 // Build NN inputs: HP deficit + recurrent memory + ray signals.
                 double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
@@ -185,14 +185,14 @@ namespace AI_Evlo_Test
         {
             CarryAgentsOnRafts();
 
-            IReadOnlyList<SensableSnapshot> snapshot = BuildSensableSnapshot();
+            BuildSensableSnapshot();
 
             Parallel.ForEach(lsObjects, smartObject =>
             {
                 SmartObject smart = smartObject as SmartObject;
 
                 // Each species declares what it can and cannot perceive
-                smart.Perception.Update(smart.Location, smart.FaceDirection, snapshot, smart.ID, smart.IgnoredCategories);
+                smart.Perception.Update(smart.Location, smart.FaceDirection, perceptionIndex, smart.ID, smart.IgnoredCategories);
 
                 // Build NN inputs: HP deficit + recurrent memory + ray signals.
                 double hpDeficit = 1.0 - (smartObject.HP / smart.EffectiveMaxHp);
@@ -202,130 +202,6 @@ namespace AI_Evlo_Test
             });
 
             ApplyRaftEnvironmentEffects();
-        }
-
-        // ---- Rendering (UI thread only) ----------------------------------------------
-        // Reads model state and updates WPF visuals. Kept separate from the model step so
-        // the simulation can run without touching the UI.
-
-        private void RenderWorld()
-        {
-            ReconcileVisuals();
-            RenderTargets();
-            if (eEnvironmentType == EEnvironmentType.OneTarget)
-                RenderAgentsEnv1();
-            else
-                RenderAgentsEnv2();
-        }
-
-        private void RenderTargets()
-        {
-            foreach (TargetObj target in Targets)
-            {
-                if (target.VisibleShape == null)
-                    continue;
-
-                if (eEnvironmentType == EEnvironmentType.OneTarget)
-                {
-                    target.VisibleShape.Width = target.Size;
-                    target.VisibleShape.Height = target.Size;
-                }
-
-                target.VisibleShape.Opacity = target.Underwater >= 0 ? 0.6 : 0.3;
-                DrawImage(target.VisibleShape, target.Location);
-            }
-        }
-
-        private void RenderAgentsEnv1()
-        {
-            RenderSelectedAgentRays();
-
-            foreach (ISmartObject smartObject in lsObjects)
-            {
-                if (smartObject.VisibleShape == null)
-                    continue;
-
-                SmartObject smart = (SmartObject)smartObject;
-                smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
-                double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
-                // Reuse the existing transform instead of allocating one per agent per frame.
-                if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
-                    rotate.Angle = anglFromVertical;
-                else
-                    smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
-
-                // Animate species sprite
-                if (smartObject.VisibleShape is Image img)
-                {
-                    ImageSource frame = smart.GetSpriteFrame();
-                    if (frame != null)
-                        img.Source = GetAgentFrameForRender(smart, frame);
-                }
-                else if (smart.IsGoldenAgent && smartObject.VisibleShape is Shape shape)
-                {
-                    shape.Fill = smart.IsGoldenMergeFlashActive ? Brushes.Red : Brushes.Gold;
-                }
-
-                DrawImage(smartObject.VisibleShape, smartObject.Location);
-            }
-        }
-
-        private void RenderAgentsEnv2()
-        {
-            RenderSelectedAgentRays();
-
-            foreach (ISmartObject smartObject in lsObjects)
-            {
-                if (smartObject.VisibleShape == null)
-                    continue;
-
-                SmartObject smart = (SmartObject)smartObject;
-                smartObject.VisibleShape.Opacity = (2 * smartObject.HP / smart.EffectiveMaxHp);
-                if (smartObject.VisibleShape is Polygon polygon)
-                    polygon.Stroke = smartObject.IsGettingHP ? Brushes.GreenYellow : Brushes.OrangeRed;
-
-                double anglFromVertical = Vector.AngleBetween(new Vector(0, -1), smart.FaceDirection);
-                // Reuse the existing transform instead of allocating one per agent per frame.
-                if (smartObject.VisibleShape.RenderTransform is RotateTransform rotate)
-                    rotate.Angle = anglFromVertical;
-                else
-                    smartObject.VisibleShape.RenderTransform = new RotateTransform(anglFromVertical);
-
-                // Animate species sprite
-                if (smartObject.VisibleShape is Image img)
-                {
-                    ImageSource frame = smart.GetSpriteFrame();
-                    if (frame != null)
-                        img.Source = GetAgentFrameForRender(smart, frame);
-                }
-                else if (smart.IsGoldenAgent && smartObject.VisibleShape is Shape shape)
-                {
-                    shape.Fill = smart.IsGoldenMergeFlashActive ? Brushes.Red : Brushes.Gold;
-                }
-
-                DrawImage(smartObject.VisibleShape, smartObject.Location);
-            }
-        }
-
-        private void RenderSelectedAgentRays()
-        {
-            if (TryGetRenderableSelectedSmartObject(out SmartObject selected))
-            {
-                rayVisualizer.Draw(selected.Location, selected.Perception);
-                return;
-            }
-
-            rayVisualizer?.Hide();
-        }
-
-        private static ImageSource GetAgentFrameForRender(SmartObject smart, ImageSource frame)
-        {
-            if (!smart.IsGoldenAgent)
-                return frame;
-
-            return smart.IsGoldenMergeFlashActive
-                ? GoldenTintCache.GetRedTinted(frame)
-                : GoldenTintCache.GetTinted(frame);
         }
 
         private bool TryGetRenderableSelectedSmartObject(out SmartObject selected)
@@ -465,6 +341,7 @@ namespace AI_Evlo_Test
                 }
             }
 
+            perceptionIndex.Rebuild(_sensableSnapshot);
             return _sensableSnapshot;
         }
 
@@ -547,6 +424,7 @@ namespace AI_Evlo_Test
 
         readonly List<PopulationCard> lsPopuCards = new List<PopulationCard>();
         readonly List<SensableSnapshot> _sensableSnapshot = new List<SensableSnapshot>();
+        readonly SpatialPerceptionIndex perceptionIndex = new();
 
         // Rolling history for the status-bar sparkline.
         private const int SparkSamples = 120;
@@ -558,48 +436,16 @@ namespace AI_Evlo_Test
         /// <summary>Returns a random raft rotation speed in degrees/second within ±5.</summary>
         private static double RandomRotationSpeed() => NextRandomDouble() * 10.0 - 5.0;
 
-        /// <summary>
-        /// Updates raft visuals in real time (UI-only): a slow ±5°/s rotation, and a sprite-frame
-        /// swap on a random 0.5–1.0 s cadence so the raft bobs gently rather than shaking.
-        /// </summary>
-        private void UpdateRaftAnimation()
+        private static readonly SolidColorBrush HpGreen = FrozenBrush(0x4C, 0xAF, 0x50);
+        private static readonly SolidColorBrush HpOrange = FrozenBrush(0xFF, 0x98, 0x00);
+        private static readonly SolidColorBrush HpRed = FrozenBrush(0xE5, 0x39, 0x35);
+
+        private static SolidColorBrush FrozenBrush(byte red, byte green, byte blue)
         {
-            if (eEnvironmentType != EEnvironmentType.TwoTargets)
-                return;
-
-            DateTime now = DateTime.Now;
-            double dt = (now - _lastRaftVisualUpdate).TotalSeconds;
-            _lastRaftVisualUpdate = now;
-            if (dt <= 0 || dt > 1.0)
-                dt = 0; // first tick or resumed after a pause — don't jump the rotation
-
-            foreach (TargetObj raft in Targets)
-            {
-                if (!(raft.VisibleShape is Image raftImage))
-                    continue;
-
-                // Slow continuous rotation
-                raft.RotationAngle += raft.RotationDegPerSec * dt;
-                if (raft.RotationAngle > 360) raft.RotationAngle -= 360;
-                else if (raft.RotationAngle < -360) raft.RotationAngle += 360;
-                if (raftImage.RenderTransform is RotateTransform rt)
-                    rt.Angle = raft.RotationAngle;
-                else
-                    raftImage.RenderTransform = new RotateTransform(raft.RotationAngle);
-
-                // Sprite frame swap on a random real-time interval
-                if (RaftSheetCache.FrameCount > 1 && now >= raft.NextSpriteChangeTime)
-                {
-                    raft.SpriteFrameIndex++;
-                    raftImage.Source = RaftSheetCache.Frame(raft.SpriteFrameIndex);
-                    raft.NextSpriteChangeTime = now.AddSeconds(0.5 + NextRandomDouble() * 0.5);
-                }
-            }
+            var brush = new SolidColorBrush(Color.FromRgb(red, green, blue));
+            brush.Freeze();
+            return brush;
         }
-
-        private static readonly SolidColorBrush HpGreen = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
-        private static readonly SolidColorBrush HpOrange = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));
-        private static readonly SolidColorBrush HpRed = new SolidColorBrush(Color.FromRgb(0xE5, 0x39, 0x35));
 
         private static Brush HpBrush(double pct) => pct > 50 ? HpGreen : (pct > 20 ? HpOrange : HpRed);
 
@@ -697,136 +543,7 @@ namespace AI_Evlo_Test
             lblBrainInfo.Text = $"{net.HiddenLayers.Count} layers × {firstN}";
         }
 
-        private void UpdateLabbels()
-        {
-            if (DateTime.Now.Subtract(dtLastLabelsUpdate) < new TimeSpan(0, 0, 0, 0, 200))
-                return;
-            dtLastLabelsUpdate = DateTime.Now;
-
-            // Selected agent live stats (icon + brain are set on selection in UpdateSelectedAgentVisual)
-            UpdateSelectedAgentStats();
-
-            UpdateSparkline();
-
-            // Status bar
-            UpdateStatusBar();
-
-            // Population info
-            for (int i = 0; i < lsPopulations.Count; i++)
-            {
-                Population pop = lsPopulations[i];
-                if (pop.LifeCycles == 0 || pop.Members.Count == 0)
-                    continue;
-
-                int liveMembers = pop.Members.Count(member => member != null && member.HP > 0);
-                double totalFitness = 0;
-
-                for (int memberIndex = 0; memberIndex < pop.Members.Count; memberIndex++)
-                {
-                    ISmartObject member = pop.Members[memberIndex];
-                    totalFitness += member.Fitness;
-                }
-
-                int lostMembers = pop.TotalMembersCount - liveMembers;
-                int avgFitness = (int)(totalFitness / pop.Members.Count);
-
-                if (i >= lsPopuCards.Count)
-                    continue;
-                PopulationCard card = lsPopuCards[i];
-
-                card.Title.Text = $"{pop.SizeLimit} {GetPopulationBeingName(pop.Being)}";
-
-                string golden = pop.GoldenAgentEnabled
-                    ? $"  · {pop.GoldenAveragedNetworkCount} merged to golden | T{(int)Math.Ceiling(pop.GoldenThreshold)}"
-                    : "  ·  golden off";
-                card.Stats.Text =
-                    $"{liveMembers} alive / {lostMembers}  + avg fitness { avgFitness}" + Environment.NewLine +
-                    $"{golden}";
-
-                string tip =
-                    $"Population '{pop.Name}' ({GetPopulationBeingName(pop.Being)})" + Environment.NewLine +
-                    $"Live agents: {liveMembers}  |  Lost agents: {lostMembers}" + Environment.NewLine +
-                    $"Average fitness: {avgFitness}" + Environment.NewLine +
-                    $"Golden agent: {(pop.GoldenAgentEnabled ? "enabled" : "disabled")} | Merged : {pop.GoldenAveragedNetworkCount} | GoldenThreshold: {(int)Math.Ceiling(pop.GoldenThreshold)}" + Environment.NewLine +
-                    $"T = an agent must survive {(int)Math.Ceiling(pop.GoldenThreshold)} cycles before it can merge its brain into the golden agent.";
-                card.Root.ToolTip = tip;
-
-                if (_selectedPopulation == pop)
-                {
-                    lblPopulationInfo.Content = $"{pop.Name} ({GetPopulationBeingName(pop.Being)})  {card.Stats.Text}";
-                    lblPopulationInfo.ToolTip = tip;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Recomputes cycles/second and refreshes the status-bar text (cycle count, throughput,
-        /// live agent count, target occupancy). Cheap enough to run in headless mode, where it is
-        /// the only UI work done — it must be called on the UI thread while holding simLock.
-        /// </summary>
-        private void UpdateStatusBar()
-        {
-            // Cycles per second (measured over ~1 second windows)
-            DateTime now = DateTime.Now;
-            double elapsedSeconds = (now - lastCpsCheckTime).TotalSeconds;
-            if (elapsedSeconds >= 1.0)
-            {
-                int cyclesDelta = CycleCount - lastCpsCheckCycle;
-                cyclesPerSecond = cyclesDelta / elapsedSeconds;
-                lastCpsCheckCycle = CycleCount;
-                lastCpsCheckTime = now;
-            }
-
-            string statusText = isHeadlessMode ? "[HEADLESS] " : "";
-            statusText += $"Cycle {CycleCount}  |  Cycles/s: {cyclesPerSecond:F2}";
-            if (Targets.Count > 0)
-            {
-                int onTarget = Targets[0].ObjectsOnTop;
-                int alive = lsObjects.Count(o => !(o is SmartObject smart && smart.IsGoldenAgent));
-                statusText +=
-                    $"  |  Agents alive: {alive}  |  Target 1: {onTarget} on top, depth {Targets[0].Underwater:F0}";
-            }
-            if (Targets.Count > 1)
-            {
-                statusText +=
-                    $"  |  Target 2: {Targets[1].ObjectsOnTop} on top, depth {Targets[1].Underwater:F0}";
-            }
-            lblStatusBar.Content = statusText;
-            lblStatusBar.ToolTip = statusText;
-        }
-
-        /// <summary>
-        /// Pushes the latest "agents alive" and "top fitness" samples into the rolling
-        /// history and redraws the two status-bar sparklines. Each series auto-scales to
-        /// its own running maximum so both stay visible regardless of magnitude.
-        /// </summary>
-        private void UpdateSparkline()
-        {
-            if (sparkCanvas == null)
-                return;
-
-            int aliveCount = 0;
-            double topFitness = double.NegativeInfinity;
-            for (int i = 0; i < lsObjects.Count; i++)
-            {
-                ISmartObject o = lsObjects[i];
-                if (o is SmartObject s && s.IsGoldenAgent)
-                    continue;
-
-                aliveCount++;
-                if (o.Fitness > topFitness)
-                    topFitness = o.Fitness;
-            }
-
-            if (double.IsNegativeInfinity(topFitness))
-                topFitness = 0;
-
-            PushSparkSample(_sparkAlive, aliveCount);
-            PushSparkSample(_sparkFitness, topFitness);
-
-            BuildSparkline(sparkAlive, _sparkAlive);
-            BuildSparkline(sparkFitness, _sparkFitness);
-        }
+        private void UpdateLabbels() => PaintHudFrame(CaptureHudFrame());
 
         private static void PushSparkSample(List<double> buffer, double value)
         {

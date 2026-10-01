@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,6 +15,7 @@ namespace AI_Evlo_Test.ConfigLib
         public int Outputs = OutputsDefault; // rotation + thrust + memory writes
         public int HiddenLayers ;
         public int NeuronsInHiddenLayer ;
+        [Newtonsoft.Json.JsonProperty]
         public string Id { get; internal set; }
         public List<NeuralLayerDefinition> LayerDefinitions { get; set; } = new List<NeuralLayerDefinition>();
 
